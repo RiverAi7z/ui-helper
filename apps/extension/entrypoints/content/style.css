@@ -272,7 +272,7 @@ button {
     0 30px 90px rgb(0 0 0 / 55%),
     inset 0 1px 0 rgb(255 255 255 / 7%);
   pointer-events: auto;
-  z-index: 70;
+  z-index: 80;
 }
 .ui-editor-prompt {
   display: flex;
@@ -316,6 +316,37 @@ button {
 }
 .ui-drag-dots {
   color: #6b7280;
+}
+.ui-recording-editor {
+  width: min(440px, calc(100vw - 32px));
+}
+.ui-recording-editor-prompt {
+  padding: 16px;
+}
+.ui-recording-editor-prompt .ui-textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+.ui-recording-meta {
+  overflow: hidden;
+  color: #8f96a1;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-recording-path {
+  overflow: hidden;
+  margin: 14px 16px;
+  padding: 10px 12px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 10px;
+  color: #aeb4bd;
+  background: rgb(255 255 255 / 4%);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ui-editor-scroll {
   height: 400px;
@@ -787,6 +818,30 @@ button {
 .ui-recording-window-tag {
   top: 18px;
   right: 18px;
+}
+.ui-recording-tag-button {
+  pointer-events: auto;
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.05s ease;
+}
+.ui-recording-tag-button:hover {
+  filter: brightness(1.12);
+  box-shadow:
+    0 5px 16px rgb(0 0 0 / 35%),
+    0 0 0 2px rgb(255 255 255 / 35%);
+}
+.ui-recording-tag-button:active {
+  transform: scale(0.97);
+}
+.ui-recording-tag-button:focus-visible,
+.ui-recording-tag-button.active {
+  outline: none;
+  box-shadow:
+    0 5px 16px rgb(0 0 0 / 35%),
+    0 0 0 2px #ffffff;
 }
 
 @media (max-width: 680px) {

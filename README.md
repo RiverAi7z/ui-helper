@@ -7,7 +7,7 @@ A Chrome/Edge visual feedback extension for local front-end projects. Select DOM
 Until the Chrome Web Store review is complete, install the signed-off GitHub build manually:
 
 1. Open the [latest GitHub release](https://github.com/RiverAi7z/ui-helper/releases/latest).
-2. Download `ui-helper-v0.1.1-chrome.zip` and unzip it.
+2. Download `ui-helper-v0.1.2-chrome.zip` and unzip it.
 3. Open `chrome://extensions` in Chrome or Edge.
 4. Enable **Developer mode**.
 5. Click **Load unpacked** and select the unzipped folder.
@@ -30,7 +30,8 @@ Load `apps/extension/.output/chrome-mv3` from `chrome://extensions` with **Devel
 2. Hover and select an element, adjust its values in the editor, then save the annotation.
 3. Use the region tool for layout areas or canvas content.
 4. Click Record when a problem involves motion, then choose **Window** for the visible web page or **Area** to drag a recording rectangle. The first recording opens Chromium's project-folder permission dialog directly over the current page. GIFs are written to `.ui-helper/recordings/`.
-5. Click **Copy for AI** and paste the resulting Markdown into an Agent running at the project root. The clipboard includes all DOM/style context and `@.ui-helper/recordings/…gif` references.
+5. After the GIF is saved, describe the issue in the recording annotation editor. Click a red GIF label later to edit its annotation.
+6. Click **Copy for AI** and paste the resulting Markdown into an Agent running at the project root. The clipboard includes all DOM/style context, recording annotations, and `@.ui-helper/recordings/…gif` references.
 
 Copying annotations never requires folder access, a local server, a pairing token, or a command-line process.
 

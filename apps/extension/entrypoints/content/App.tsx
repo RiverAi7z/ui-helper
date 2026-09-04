@@ -106,6 +106,9 @@ export function App({
     y: number;
   } | null>(null);
   const [recordings, setRecordings] = useState<RecordingAsset[]>([]);
+  const [selectedRecordingId, setSelectedRecordingId] = useState<string | null>(
+    null,
+  );
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingLimit, setRecordingLimit] = useState(20);
@@ -134,6 +137,10 @@ export function App({
     id: string;
     styles: LocalAnnotation["styles"];
     text?: string;
+    comment: string;
+  } | null>(null);
+  const recordingCommentBaselineRef = useRef<{
+    id: string;
     comment: string;
   } | null>(null);
   annotationsRef.current = annotations;
@@ -286,12 +293,14 @@ export function App({
           .catch(() => undefined);
       setAnnotations([]);
       setRecordings([]);
+      setSelectedRecordingId(null);
       setRecording(false);
       setRecordingSeconds(0);
       setActiveRecordingRegion(undefined);
       setRecordBarOpen(false);
       setPreviewEnabled(true);
       editBaselineRef.current = null;
+      recordingCommentBaselineRef.current = null;
       selectionLockRef.current = false;
       setSelectedId(null);
       setRegionStart(null);
@@ -360,6 +369,8 @@ export function App({
   }, [recording]);
 
   const selected = annotations.find((item) => item.id === selectedId) ?? null;
+  const selectedRecording =
+    recordings.find((item) => item.id === selectedRecordingId) ?? null;
 
   useEffect(() => {
     if (!selectedId) {
@@ -390,6 +401,41 @@ export function App({
     setAnnotations((items) =>
       items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     );
+  };
+
+  const openRecordingEditor = (recordingAsset: RecordingAsset) => {
+    recordingCommentBaselineRef.current = {
+      id: recordingAsset.id,
+      comment: recordingAsset.comment,
+    };
+    editBaselineRef.current = null;
+    selectionLockRef.current = true;
+    setSelectedId(null);
+    setSelectedRecordingId(recordingAsset.id);
+  };
+
+  const updateRecordingComment = (id: string, comment: string) => {
+    setRecordings((items) =>
+      items.map((item) => (item.id === id ? { ...item, comment } : item)),
+    );
+  };
+
+  const cancelRecordingEditor = () => {
+    if (!selectedRecording) return;
+    const baseline = recordingCommentBaselineRef.current;
+    if (baseline?.id === selectedRecording.id)
+      updateRecordingComment(selectedRecording.id, baseline.comment);
+    recordingCommentBaselineRef.current = null;
+    selectionLockRef.current = false;
+    setSelectedRecordingId(null);
+  };
+
+  const saveRecordingComment = () => {
+    if (!selectedRecording) return;
+    recordingCommentBaselineRef.current = null;
+    selectionLockRef.current = false;
+    setSelectedRecordingId(null);
+    setNotice("Recording annotation saved");
   };
 
   const updateStyle = (
@@ -547,6 +593,8 @@ export function App({
     }
     setHovered(null);
     setSelectedId(null);
+    setSelectedRecordingId(null);
+    recordingCommentBaselineRef.current = null;
     selectionLockRef.current = true;
     setMode("idle");
     recordingScopeRef.current = scope;
@@ -593,19 +641,24 @@ export function App({
       setNotice(error instanceof Error ? error.message : String(error));
       return;
     }
-    setRecordings((items) => [
-      ...items,
-      {
-        id: crypto.randomUUID(),
-        relativePath,
-        width: response.width,
-        height: response.height,
-        frames: response.frames,
-        comment: "",
-        scope: completedScope,
-        region: completedRegion,
-      },
-    ]);
+    const recordingAsset: RecordingAsset = {
+      id: crypto.randomUUID(),
+      relativePath,
+      width: response.width,
+      height: response.height,
+      frames: response.frames,
+      comment: "",
+      scope: completedScope,
+      region: completedRegion,
+    };
+    setRecordings((items) => [...items, recordingAsset]);
+    recordingCommentBaselineRef.current = {
+      id: recordingAsset.id,
+      comment: "",
+    };
+    selectionLockRef.current = true;
+    setSelectedId(null);
+    setSelectedRecordingId(recordingAsset.id);
     setNotice(`GIF saved to ${relativePath}`);
   }, [recording]);
 
@@ -651,6 +704,8 @@ export function App({
       setAnnotations([]);
       setRecordings([]);
       setSelectedId(null);
+      setSelectedRecordingId(null);
+      recordingCommentBaselineRef.current = null;
       setHovered(null);
       setRegionStart(null);
       setRegionCurrent(null);
@@ -701,7 +756,9 @@ export function App({
                 className="ui-marker"
                 style={{ left: rect.x + rect.width - 12, top: rect.y - 12 }}
                 onClick={() => {
+                  recordingCommentBaselineRef.current = null;
                   selectionLockRef.current = true;
+                  setSelectedRecordingId(null);
                   setSelectedId(annotation.id);
                 }}
               >
@@ -715,13 +772,17 @@ export function App({
         recordings.map((recordingAsset, index) => {
           if (!recordingAsset.region)
             return (
-              <div
-                className="ui-recording-tag ui-recording-window-tag"
+              <button
+                className={`ui-recording-tag ui-recording-tag-button ui-recording-window-tag${
+                  selectedRecordingId === recordingAsset.id ? " active" : ""
+                }`}
                 style={{ top: 18 + index * 34 }}
                 key={recordingAsset.id}
+                title="Annotate recording"
+                onClick={() => openRecordingEditor(recordingAsset)}
               >
                 GIF {index + 1} · Window
-              </div>
+              </button>
             );
           const rect = {
             ...recordingAsset.region,
@@ -731,12 +792,16 @@ export function App({
           return (
             <React.Fragment key={recordingAsset.id}>
               <Box rect={rect} className="ui-recording-box" />
-              <div
-                className="ui-recording-tag"
+              <button
+                className={`ui-recording-tag ui-recording-tag-button${
+                  selectedRecordingId === recordingAsset.id ? " active" : ""
+                }`}
                 style={{ left: rect.x, top: Math.max(8, rect.y - 29) }}
+                title="Annotate recording"
+                onClick={() => openRecordingEditor(recordingAsset)}
               >
                 GIF {index + 1} · Area
-              </div>
+              </button>
             </React.Fragment>
           );
         })}
@@ -863,7 +928,21 @@ export function App({
         </div>
       )}
 
-      {!recording && selected && (
+      {!recording && selectedRecording && (
+        <RecordingEditor
+          recording={selectedRecording}
+          index={
+            recordings.findIndex((item) => item.id === selectedRecording.id) + 1
+          }
+          onComment={(comment) =>
+            updateRecordingComment(selectedRecording.id, comment)
+          }
+          onCancel={cancelRecordingEditor}
+          onSave={saveRecordingComment}
+        />
+      )}
+
+      {!recording && selected && !selectedRecording && (
         <Editor
           annotation={selected}
           portalContainer={portalContainer}
@@ -978,6 +1057,79 @@ function Toolbar(props: {
       <Button disabled={props.recording} onClick={props.onExport}>
         <Copy size={16} /> Copy for AI
       </Button>
+    </div>
+  );
+}
+
+function RecordingEditor(props: {
+  recording: RecordingAsset;
+  index: number;
+  onComment: (value: string) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const startSpeech = () => {
+    const SpeechRecognition = (
+      window as unknown as {
+        webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+      }
+    ).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const recognition = new SpeechRecognition();
+    recognition.lang = navigator.language;
+    recognition.onresult = (event) =>
+      props.onComment(
+        `${props.recording.comment}${props.recording.comment ? " " : ""}${event.results[0][0].transcript}`,
+      );
+    recognition.start();
+  };
+
+  return (
+    <div className="ui-editor ui-recording-editor">
+      <div className="ui-editor-prompt ui-recording-editor-prompt">
+        <Video size={18} />
+        <Textarea
+          autoFocus
+          value={props.recording.comment}
+          onChange={(event) => props.onComment(event.target.value)}
+          placeholder="Describe what happens in this recording…"
+          rows={4}
+        />
+      </div>
+      <div className="ui-editor-title">
+        <span className="ui-editor-tag">
+          GIF {props.index} ·{" "}
+          {props.recording.scope === "window" ? "Window" : "Area"}
+        </span>
+        <span className="ui-recording-meta">
+          {props.recording.width}×{props.recording.height} ·{" "}
+          {props.recording.frames} frames
+        </span>
+      </div>
+      <div className="ui-recording-path" title={props.recording.relativePath}>
+        @{props.recording.relativePath}
+      </div>
+      <div className="ui-editor-actions">
+        <span className="ui-action-spacer" />
+        <Button
+          title="Dictate annotation"
+          size="icon"
+          variant="ghost"
+          onClick={startSpeech}
+        >
+          <Mic size={18} />
+        </Button>
+        <Button variant="secondary" onClick={props.onCancel}>
+          Cancel
+        </Button>
+        <Button
+          size="icon"
+          title="Save recording annotation"
+          onClick={props.onSave}
+        >
+          <Check size={18} />
+        </Button>
+      </div>
     </div>
   );
 }
