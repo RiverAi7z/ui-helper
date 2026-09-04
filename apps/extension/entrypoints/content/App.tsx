@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { flushSync } from "react-dom";
 import type {
   FeedbackAnnotation,
@@ -10,7 +16,6 @@ import {
   AppWindow,
   Check,
   Copy,
-  Crosshair,
   Eye,
   EyeOff,
   GripVertical,
@@ -77,6 +82,7 @@ interface RecordingAsset {
 }
 
 type Mode = "idle" | "inspect" | "region" | "record-area";
+type Point = { x: number; y: number };
 type DirectoryPickerWindow = Window & {
   showDirectoryPicker(options?: {
     id?: string;
@@ -94,7 +100,7 @@ export function App({
   const [active, setActive] = useState(true);
   const [mode, setMode] = useState<Mode>("idle");
   const [hovered, setHovered] = useState<HTMLElement | null>(null);
-  const [pointer, setPointer] = useState({ x: 0, y: 0 });
+  const [editorOrigin, setEditorOrigin] = useState<Point>({ x: 0, y: 0 });
   const [annotations, setAnnotations] = useState<LocalAnnotation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [regionStart, setRegionStart] = useState<{
@@ -122,7 +128,9 @@ export function App({
   const [recordBarOpen, setRecordBarOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [, setLayoutTick] = useState(0);
+  const recordBarPanel = useMovablePanel();
   const annotationsRef = useRef(annotations);
+  const pointerRef = useRef<Point>({ x: 0, y: 0 });
   const projectDirectoryRef = useRef<FileSystemDirectoryHandle | null>(null);
   const selectedIdRef = useRef(selectedId);
   const selectionLockRef = useRef(false);
@@ -187,7 +195,7 @@ export function App({
 
     let frame = 0;
     const onPointerMove = (event: PointerEvent) => {
-      setPointer({ x: event.clientX, y: event.clientY });
+      pointerRef.current = { x: event.clientX, y: event.clientY };
       if (recording) {
         setHovered(null);
         return;
@@ -232,6 +240,7 @@ export function App({
         annotationsRef.current.length + 1,
       );
       setAnnotations((items) => [...items, annotation]);
+      setEditorOrigin({ x: event.clientX, y: event.clientY });
       setSelectedId(annotation.id);
       setHovered(null);
     };
@@ -280,6 +289,7 @@ export function App({
         annotationsRef.current.length + 1,
       );
       setAnnotations((items) => [...items, annotation]);
+      setEditorOrigin({ x: event.clientX, y: event.clientY });
       setSelectedId(annotation.id);
     };
 
@@ -403,7 +413,11 @@ export function App({
     );
   };
 
-  const openRecordingEditor = (recordingAsset: RecordingAsset) => {
+  const openRecordingEditor = (
+    recordingAsset: RecordingAsset,
+    origin: Point,
+  ) => {
+    setEditorOrigin(origin);
     recordingCommentBaselineRef.current = {
       id: recordingAsset.id,
       comment: recordingAsset.comment,
@@ -656,6 +670,7 @@ export function App({
       id: recordingAsset.id,
       comment: "",
     };
+    setEditorOrigin(pointerRef.current);
     selectionLockRef.current = true;
     setSelectedId(null);
     setSelectedRecordingId(recordingAsset.id);
@@ -755,9 +770,10 @@ export function App({
               <button
                 className="ui-marker"
                 style={{ left: rect.x + rect.width - 12, top: rect.y - 12 }}
-                onClick={() => {
+                onClick={(event) => {
                   recordingCommentBaselineRef.current = null;
                   selectionLockRef.current = true;
+                  setEditorOrigin({ x: event.clientX, y: event.clientY });
                   setSelectedRecordingId(null);
                   setSelectedId(annotation.id);
                 }}
@@ -779,7 +795,12 @@ export function App({
                 style={{ top: 18 + index * 34 }}
                 key={recordingAsset.id}
                 title="Annotate recording"
-                onClick={() => openRecordingEditor(recordingAsset)}
+                onClick={(event) =>
+                  openRecordingEditor(recordingAsset, {
+                    x: event.clientX,
+                    y: event.clientY,
+                  })
+                }
               >
                 GIF {index + 1} · Window
               </button>
@@ -798,7 +819,12 @@ export function App({
                 }`}
                 style={{ left: rect.x, top: Math.max(8, rect.y - 29) }}
                 title="Annotate recording"
-                onClick={() => openRecordingEditor(recordingAsset)}
+                onClick={(event) =>
+                  openRecordingEditor(recordingAsset, {
+                    x: event.clientX,
+                    y: event.clientY,
+                  })
+                }
               >
                 GIF {index + 1} · Area
               </button>
@@ -858,7 +884,19 @@ export function App({
       />
 
       {recordBarOpen && !recording && (
-        <div className="ui-record-bar">
+        <div
+          ref={recordBarPanel.panelRef}
+          className="ui-record-bar"
+          style={recordBarPanel.style}
+        >
+          <button
+            className="ui-panel-drag-handle"
+            title="Move recording options"
+            aria-label="Move recording options"
+            {...recordBarPanel.dragHandleProps}
+          >
+            <GripVertical size={15} />
+          </button>
           <button
             className="ui-record-bar-close"
             title="Close recording options"
@@ -930,7 +968,9 @@ export function App({
 
       {!recording && selectedRecording && (
         <RecordingEditor
+          key={selectedRecording.id}
           recording={selectedRecording}
+          initialPosition={editorOrigin}
           index={
             recordings.findIndex((item) => item.id === selectedRecording.id) + 1
           }
@@ -944,7 +984,9 @@ export function App({
 
       {!recording && selected && !selectedRecording && (
         <Editor
+          key={selected.id}
           annotation={selected}
+          initialPosition={editorOrigin}
           portalContainer={portalContainer}
           onComment={(comment) => updateAnnotation(selected.id, { comment })}
           onStyle={(property, value) => updateStyle(selected, property, value)}
@@ -965,6 +1007,108 @@ export function App({
   );
 }
 
+function useMovablePanel(initialPosition?: Point) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<Point | null>(
+    initialPosition ?? null,
+  );
+  const dragRef = useRef<{
+    pointerId: number;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!initialPosition || !panelRef.current) return;
+    setPosition(clampPanelPosition(initialPosition, panelRef.current));
+  }, [initialPosition?.x, initialPosition?.y]);
+
+  useEffect(() => {
+    const keepInViewport = () => {
+      setPosition((current) =>
+        current && panelRef.current
+          ? clampPanelPosition(current, panelRef.current)
+          : current,
+      );
+    };
+    window.addEventListener("resize", keepInViewport);
+    return () => window.removeEventListener("resize", keepInViewport);
+  }, []);
+
+  const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || !panelRef.current) return;
+    const rect = panelRef.current.getBoundingClientRect();
+    dragRef.current = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    };
+    setPosition({ x: rect.left, y: rect.top });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const onPointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!panelRef.current) return;
+    setPosition(
+      clampPanelPosition(
+        {
+          x: event.clientX - drag.offsetX,
+          y: event.clientY - drag.offsetY,
+        },
+        panelRef.current,
+      ),
+    );
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const endDrag = (event: React.PointerEvent<HTMLElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  return {
+    panelRef,
+    style: position
+      ? ({
+          left: position.x,
+          top: position.y,
+          right: "auto",
+          bottom: "auto",
+          transform: "none",
+        } satisfies React.CSSProperties)
+      : undefined,
+    dragHandleProps: {
+      onPointerDown,
+      onPointerMove,
+      onPointerUp: endDrag,
+      onPointerCancel: endDrag,
+    },
+  };
+}
+
+function clampPanelPosition(point: Point, panel: HTMLElement): Point {
+  const rect = panel.getBoundingClientRect();
+  return {
+    x: Math.min(
+      Math.max(0, point.x),
+      Math.max(0, window.innerWidth - rect.width),
+    ),
+    y: Math.min(
+      Math.max(0, point.y),
+      Math.max(0, window.innerHeight - rect.height),
+    ),
+  };
+}
+
 function Toolbar(props: {
   mode: Mode;
   setMode: (mode: Mode) => void;
@@ -983,8 +1127,18 @@ function Toolbar(props: {
   recordBarOpen: boolean;
   onToggleRecordBar: () => void;
 }) {
+  const panel = useMovablePanel();
+
   return (
-    <div className="ui-toolbar">
+    <div ref={panel.panelRef} className="ui-toolbar" style={panel.style}>
+      <button
+        className="ui-panel-drag-handle ui-toolbar-drag-handle"
+        title="Move toolbar"
+        aria-label="Move toolbar"
+        {...panel.dragHandleProps}
+      >
+        <GripVertical size={15} />
+      </button>
       <Button
         title="Inspect elements"
         size="icon"
@@ -1063,11 +1217,13 @@ function Toolbar(props: {
 
 function RecordingEditor(props: {
   recording: RecordingAsset;
+  initialPosition: Point;
   index: number;
   onComment: (value: string) => void;
   onCancel: () => void;
   onSave: () => void;
 }) {
+  const panel = useMovablePanel(props.initialPosition);
   const startSpeech = () => {
     const SpeechRecognition = (
       window as unknown as {
@@ -1085,9 +1241,20 @@ function RecordingEditor(props: {
   };
 
   return (
-    <div className="ui-editor ui-recording-editor">
+    <div
+      ref={panel.panelRef}
+      className="ui-editor ui-recording-editor"
+      style={panel.style}
+    >
       <div className="ui-editor-prompt ui-recording-editor-prompt">
-        <Video size={18} />
+        <button
+          className="ui-editor-prompt-drag-handle"
+          title="Move panel"
+          aria-label="Move panel"
+          {...panel.dragHandleProps}
+        >
+          <Video size={18} />
+        </button>
         <Textarea
           autoFocus
           value={props.recording.comment}
@@ -1096,7 +1263,10 @@ function RecordingEditor(props: {
           rows={4}
         />
       </div>
-      <div className="ui-editor-title">
+      <div
+        className="ui-editor-title ui-panel-drag-surface"
+        {...panel.dragHandleProps}
+      >
         <span className="ui-editor-tag">
           GIF {props.index} ·{" "}
           {props.recording.scope === "window" ? "Window" : "Area"}
@@ -1105,6 +1275,7 @@ function RecordingEditor(props: {
           {props.recording.width}×{props.recording.height} ·{" "}
           {props.recording.frames} frames
         </span>
+        <GripVertical size={16} className="ui-drag-dots" />
       </div>
       <div className="ui-recording-path" title={props.recording.relativePath}>
         @{props.recording.relativePath}
@@ -1136,6 +1307,7 @@ function RecordingEditor(props: {
 
 function Editor(props: {
   annotation: LocalAnnotation;
+  initialPosition: Point;
   portalContainer: HTMLElement;
   onComment: (value: string) => void;
   onStyle: (property: StyleProperty, value: string) => void;
@@ -1145,6 +1317,7 @@ function Editor(props: {
   onSave: () => void;
 }) {
   const { annotation } = props;
+  const panel = useMovablePanel(props.initialPosition);
   const [expandedPadding, setExpandedPadding] = useState(false);
   const [expandedMargin, setExpandedMargin] = useState(false);
   const [dimensionsLinked, setDimensionsLinked] = useState(false);
@@ -1165,9 +1338,16 @@ function Editor(props: {
   };
 
   return (
-    <div className="ui-editor">
+    <div ref={panel.panelRef} className="ui-editor" style={panel.style}>
       <div className="ui-editor-prompt">
-        <Crosshair size={18} />
+        <button
+          className="ui-editor-prompt-drag-handle"
+          title="Move panel"
+          aria-label="Move panel"
+          {...panel.dragHandleProps}
+        >
+          <GripVertical size={18} />
+        </button>
         <Textarea
           value={annotation.comment}
           onChange={(event) => props.onComment(event.target.value)}
@@ -1175,13 +1355,15 @@ function Editor(props: {
           rows={1}
         />
       </div>
-      <div className="ui-editor-title">
+      <div
+        className="ui-editor-title ui-panel-drag-surface"
+        {...panel.dragHandleProps}
+      >
         <span className="ui-editor-tag">
           {annotation.kind === "element"
             ? annotation.target?.tagName
             : "Region annotation"}
         </span>
-        <GripVertical size={16} className="ui-drag-dots" />
       </div>
       {annotation.kind === "element" && (
         <ScrollArea className="ui-editor-scroll">

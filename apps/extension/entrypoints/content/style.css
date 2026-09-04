@@ -138,6 +138,34 @@ button {
   font-weight: 700;
 }
 
+.ui-panel-drag-handle {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 30px;
+  flex: none;
+  padding: 0;
+  border-radius: 8px;
+  color: #737b87;
+  background: transparent;
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+}
+.ui-panel-drag-handle:hover {
+  color: #ffffff;
+  background: rgb(255 255 255 / 8%);
+}
+.ui-panel-drag-handle:active,
+.ui-panel-drag-surface:active {
+  cursor: grabbing;
+}
+.ui-panel-drag-surface {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
 .ui-toolbar {
   position: fixed;
   right: 16px;
@@ -281,10 +309,26 @@ button {
   padding: 13px 16px 11px;
   border-bottom: 1px solid rgb(255 255 255 / 7%);
 }
-.ui-editor-prompt > svg {
-  margin-top: 4px;
+.ui-editor-prompt-drag-handle {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
   flex: none;
+  padding: 0;
+  border-radius: 7px;
   color: #7f8792;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.ui-editor-prompt-drag-handle:hover {
+  color: #ffffff;
+  background: rgb(255 255 255 / 8%);
+}
+.ui-editor-prompt-drag-handle:active {
+  cursor: grabbing;
 }
 .ui-editor-prompt .ui-textarea {
   min-height: 30px;
@@ -315,6 +359,7 @@ button {
   font-weight: 600;
 }
 .ui-drag-dots {
+  flex: none;
   color: #6b7280;
 }
 .ui-recording-editor {
@@ -328,6 +373,7 @@ button {
   resize: vertical;
 }
 .ui-recording-meta {
+  flex: 1;
   overflow: hidden;
   color: #8f96a1;
   font-size: 11px;
