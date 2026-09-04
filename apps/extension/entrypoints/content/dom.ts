@@ -5,6 +5,7 @@ import type {
 } from "@ui-helper/shared";
 
 export const STYLE_PROPERTIES = [
+  "display",
   "color",
   "background-color",
   "opacity",

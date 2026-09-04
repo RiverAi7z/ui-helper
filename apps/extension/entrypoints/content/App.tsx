@@ -283,10 +283,19 @@ export function App({
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      const unsaved = annotationsRef.current.filter((item) => !item.saved);
-      for (const annotation of unsaved) restoreElementState(annotation);
-      if (unsaved.length)
-        setAnnotations((items) => items.filter((item) => item.saved));
+      for (const annotation of annotationsRef.current)
+        restoreElementState(annotation);
+      if (recording)
+        void chrome.runtime
+          .sendMessage({ type: "STOP_RECORDING" })
+          .catch(() => undefined);
+      setAnnotations([]);
+      setRecordings([]);
+      setRecording(false);
+      setRecordingSeconds(0);
+      setActiveRecordingRegion(undefined);
+      setRecordBarOpen(false);
+      setPreviewEnabled(true);
       editBaselineRef.current = null;
       selectionLockRef.current = false;
       setSelectedId(null);
@@ -393,9 +402,27 @@ export function App({
     setAnnotations((items) =>
       items.map((item) => {
         if (item.id !== annotation.id) return item;
-        if (item.element && previewEnabled)
+        const promoteInline =
+          item.element &&
+          (property.startsWith("padding-") || property.startsWith("margin-")) &&
+          getComputedStyle(item.element).display === "inline";
+        if (item.element && previewEnabled) {
+          if (promoteInline)
+            item.element.style.setProperty(
+              "display",
+              "inline-block",
+              "important",
+            );
           item.element.style.setProperty(property, value, "important");
-        return { ...item, styles: { ...item.styles, [property]: value } };
+        }
+        return {
+          ...item,
+          styles: {
+            ...item.styles,
+            ...(promoteInline ? { display: "inline-block" } : {}),
+            [property]: value,
+          },
+        };
       }),
     );
   };
