@@ -4,7 +4,7 @@ import { App } from "./App";
 import styles from "./style.css?inline";
 
 export default defineContentScript({
-  matches: ["<all_urls>"],
+  registration: "runtime",
   runAt: "document_idle",
   main() {
     if (document.querySelector("ui-helper-root")) return;

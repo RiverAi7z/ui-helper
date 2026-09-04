@@ -90,7 +90,7 @@ export function App({
   host: HTMLElement;
   portalContainer: HTMLElement;
 }) {
-  const [active, setActive] = useState(false);
+  const [active, setActive] = useState(true);
   const [mode, setMode] = useState<Mode>("idle");
   const [hovered, setHovered] = useState<HTMLElement | null>(null);
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
@@ -138,18 +138,8 @@ export function App({
     const listener = (message: { type?: string }) => {
       if (message.type === "TOGGLE_UI") setActive((value) => !value);
     };
-    const shortcut = (event: KeyboardEvent) => {
-      if (event.altKey && event.shiftKey && event.code === "KeyU") {
-        event.preventDefault();
-        setActive((value) => !value);
-      }
-    };
     chrome.runtime.onMessage.addListener(listener);
-    document.addEventListener("keydown", shortcut, true);
-    return () => {
-      chrome.runtime.onMessage.removeListener(listener);
-      document.removeEventListener("keydown", shortcut, true);
-    };
+    return () => chrome.runtime.onMessage.removeListener(listener);
   }, []);
 
   useEffect(() => {

@@ -5,8 +5,18 @@ export default defineBackground(() => {
     if (!tab.id) return;
     try {
       await chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_UI" });
+      return;
     } catch {
-      // Restricted pages and pages that have not finished loading cannot host the overlay.
+      // No UI Helper content script is running in this tab yet.
+    }
+
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["content-scripts/content.js"],
+      });
+    } catch {
+      // Restricted browser pages cannot host the overlay.
     }
   });
 

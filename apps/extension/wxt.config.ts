@@ -16,12 +16,11 @@ export default defineConfig({
     },
     permissions: [
       "activeTab",
-      "tabs",
+      "scripting",
       "tabCapture",
       "offscreen",
       "clipboardWrite",
     ],
-    host_permissions: ["<all_urls>"],
     action: {
       default_title: "Toggle UI Helper",
       default_icon: {
