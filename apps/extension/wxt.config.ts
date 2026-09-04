@@ -8,6 +8,12 @@ export default defineConfig({
     description:
       "Select, preview, annotate, and record UI feedback for coding agents.",
     version: "0.1.0",
+    icons: {
+      16: "icons/16.png",
+      32: "icons/32.png",
+      48: "icons/48.png",
+      128: "icons/128.png",
+    },
     permissions: [
       "activeTab",
       "tabs",
@@ -16,7 +22,15 @@ export default defineConfig({
       "clipboardWrite",
     ],
     host_permissions: ["<all_urls>"],
-    action: { default_title: "Toggle UI Helper" },
+    action: {
+      default_title: "Toggle UI Helper",
+      default_icon: {
+        16: "icons/16.png",
+        32: "icons/32.png",
+        48: "icons/48.png",
+        128: "icons/128.png",
+      },
+    },
     commands: {
       _execute_action: {
         suggested_key: { default: "Alt+Shift+U", mac: "Alt+Shift+U" },

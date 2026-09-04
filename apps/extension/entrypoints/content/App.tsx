@@ -1554,70 +1554,72 @@ function buildMarkdown(
   session: FeedbackSession,
   recordings: RecordingAsset[],
 ): string {
-  const lines = [
-    "# UI Helper feedback",
-    "",
-    `Page: ${session.page.title || "Untitled"}`,
-    `URL: ${session.page.url}`,
-    `Viewport: ${session.page.viewportWidth}×${session.page.viewportHeight} @ ${session.page.devicePixelRatio}x`,
-    "",
-    "Please locate the relevant source, apply these changes directly, and verify them in the existing development environment. Do not copy temporary browser-only attributes into source code.",
-    "",
-  ];
+  const lines = ["# UI feedback", "", `Page: ${session.page.url}`, ""];
   for (const annotation of session.annotations) {
-    lines.push(`## Annotation ${annotation.index} — ${annotation.kind}`);
-    if (annotation.comment) lines.push(annotation.comment);
     if (annotation.target) {
-      lines.push(`- Element: \`${annotation.target.tagName}\``);
-      lines.push(`- Selector: \`${annotation.target.selector}\``);
-      lines.push(`- XPath: \`${annotation.target.xpath}\``);
-      lines.push(
-        `- Rect: x=${Math.round(annotation.target.rect.pageX)}, y=${Math.round(annotation.target.rect.pageY)}, ${Math.round(annotation.target.rect.width)}×${Math.round(annotation.target.rect.height)}`,
+      lines.push(`## ${annotation.index}. \`${annotation.target.selector}\``);
+      if (annotation.comment) lines.push(annotation.comment, "");
+
+      const textDelta = annotation.styleDeltas.find(
+        (delta) => delta.property === "textContent",
       );
-      if (annotation.target.accessibleName)
+      if (textDelta)
         lines.push(
-          `- Accessible name/text: ${annotation.target.accessibleName}`,
+          `Text: \`${textDelta.before}\` → \`${textDelta.after}\``,
+          "",
         );
-      if (annotation.target.nearbyText)
-        lines.push(`- Nearby text: ${annotation.target.nearbyText}`);
-      lines.push(
-        "- DOM snapshot:",
-        "```html",
-        annotation.target.outerHTML,
-        "```",
+
+      const styleChanges = annotation.styleDeltas.filter(
+        (delta) => delta.property !== "textContent",
       );
+      if (styleChanges.length) {
+        lines.push("```css");
+        for (const delta of styleChanges)
+          lines.push(`${delta.property}: ${delta.before} → ${delta.after};`);
+        lines.push("```", "");
+      }
+
+      lines.push("```html", compactHtml(annotation.target.outerHTML), "```");
     } else if (annotation.region) {
+      lines.push(`## ${annotation.index}. Region`);
+      if (annotation.comment) lines.push(annotation.comment, "");
       lines.push(
-        `- Region: x=${Math.round(annotation.region.pageX)}, y=${Math.round(annotation.region.pageY)}, ${Math.round(annotation.region.width)}×${Math.round(annotation.region.height)}`,
+        `Area: x=${Math.round(annotation.region.pageX)}, y=${Math.round(annotation.region.pageY)}, ${Math.round(annotation.region.width)}×${Math.round(annotation.region.height)}`,
       );
     }
-    for (const delta of annotation.styleDeltas)
-      lines.push(
-        `- \`${delta.property}\`: \`${delta.before}\` → \`${delta.after}\``,
-      );
     lines.push("");
   }
+
   recordings.forEach((recording, index) => {
-    lines.push(`## Recording ${index + 1} — ${recording.scope}`);
-    if (recording.comment) lines.push(recording.comment);
-    lines.push(`- Reference: @${recording.relativePath}`);
+    lines.push(`## Recording ${index + 1}`);
+    if (recording.comment) lines.push(recording.comment, "");
+    lines.push(`@${recording.relativePath}`);
     if (recording.region)
       lines.push(
-        `- Recorded region: x=${Math.round(recording.region.pageX)}, y=${Math.round(recording.region.pageY)}, ${Math.round(recording.region.width)}×${Math.round(recording.region.height)}`,
-      );
-    else
-      lines.push(
-        `- Recorded scope: visible window (${session.page.viewportWidth}×${session.page.viewportHeight})`,
+        `Area: x=${Math.round(recording.region.pageX)}, y=${Math.round(recording.region.pageY)}, ${Math.round(recording.region.width)}×${Math.round(recording.region.height)}`,
       );
     lines.push("");
   });
-  lines.push(
-    "## Machine-readable context",
-    "```json",
-    JSON.stringify(session, null, 2),
-    "```",
-  );
-  return lines.join("\n");
+
+  return lines.join("\n").trim();
+}
+
+function compactHtml(html: string): string {
+  const compact = html
+    .replace(/>\s+</g, "><")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (compact.length <= 800) return compact;
+
+  const template = document.createElement("template");
+  template.innerHTML = compact;
+  const element = template.content.firstElementChild;
+  if (!element) return `${compact.slice(0, 797)}...`;
+
+  const shallow = element.cloneNode(false) as Element;
+  const text = element.textContent?.trim().replace(/\s+/g, " ") ?? "";
+  shallow.textContent = text.length > 240 ? `${text.slice(0, 237)}...` : text;
+  return shallow.outerHTML;
 }
 
 async function saveGifToDirectory(
