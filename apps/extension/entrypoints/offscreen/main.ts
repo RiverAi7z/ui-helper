@@ -1,9 +1,9 @@
 import type { RecordingCrop } from "@ui-helper/shared";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 
-const FPS = 10;
+const FPS = 6;
 const FRAME_DELAY = 1000 / FPS;
-const MAX_EDGE = 1280;
+const MAX_EDGE = 960;
 
 let stream: MediaStream | null = null;
 let timer: number | null = null;

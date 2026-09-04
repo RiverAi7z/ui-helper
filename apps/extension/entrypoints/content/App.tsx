@@ -20,6 +20,7 @@ import {
   Scan,
   SquareDashedMousePointer,
   StopCircle,
+  Timer,
   Trash2,
   Video,
   X,
@@ -107,6 +108,8 @@ export function App({
   const [recordings, setRecordings] = useState<RecordingAsset[]>([]);
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [recordingLimit, setRecordingLimit] = useState(20);
+  const [recordingLimitInput, setRecordingLimitInput] = useState("20");
   const [activeRecordingScope, setActiveRecordingScope] = useState<
     "window" | "area"
   >("window");
@@ -122,6 +125,8 @@ export function App({
   const selectionLockRef = useRef(false);
   const recordingScopeRef = useRef<"window" | "area">("window");
   const recordingRegionRef = useRef<RectSnapshot | undefined>(undefined);
+  const recordingLimitRef = useRef(20);
+  const recordingLimitInputRef = useRef("20");
   const lastSelectionRef = useRef<{ element: HTMLElement; at: number } | null>(
     null,
   );
@@ -344,9 +349,12 @@ export function App({
     if (!recording) return;
     const started = Date.now() - recordingSeconds * 1000;
     const timer = window.setInterval(() => {
-      const seconds = Math.min(20, Math.floor((Date.now() - started) / 1000));
+      const seconds = Math.min(
+        recordingLimitRef.current,
+        Math.floor((Date.now() - started) / 1000),
+      );
       setRecordingSeconds(seconds);
-      if (seconds >= 20) void stopRecording();
+      if (seconds >= recordingLimitRef.current) void stopRecording();
     }, 250);
     return () => window.clearInterval(timer);
   }, [recording]);
@@ -497,6 +505,7 @@ export function App({
   const startRecording = async (crop?: RectSnapshot) => {
     const scope = crop ? "area" : "window";
     setNotice("");
+    if (recording) return;
     try {
       if (!projectDirectoryRef.current) {
         const pickerWindow = window as unknown as DirectoryPickerWindow;
@@ -768,6 +777,7 @@ export function App({
         recordingCount={recordings.length}
         recording={recording}
         recordingSeconds={recordingSeconds}
+        recordingLimit={recordingLimit}
         previewEnabled={previewEnabled}
         portalContainer={portalContainer}
         onTogglePreview={togglePreview}
@@ -813,6 +823,43 @@ export function App({
             <Scan size={18} />
             Area
           </button>
+          <label className="ui-record-bar-duration">
+            <Timer size={18} />
+            <span className="ui-record-bar-value">
+              <input
+                className="ui-record-bar-input"
+                type="text"
+                inputMode="numeric"
+                maxLength={2}
+                value={recordingLimitInput}
+                aria-label="Recording limit seconds"
+                onChange={(event) => {
+                  const raw = event.target.value.replace(/\D/g, "").slice(0, 2);
+                  setRecordingLimitInput(raw);
+                  recordingLimitInputRef.current = raw;
+                  if (!raw) return;
+                  const next = Math.min(
+                    60,
+                    Math.max(1, Number.parseInt(raw, 10) || 1),
+                  );
+                  setRecordingLimit(next);
+                  recordingLimitRef.current = next;
+                }}
+                onBlur={() => {
+                  const raw = recordingLimitInputRef.current;
+                  const next = Math.min(
+                    60,
+                    Math.max(1, Number.parseInt(raw, 10) || 1),
+                  );
+                  setRecordingLimit(next);
+                  setRecordingLimitInput(String(next));
+                  recordingLimitRef.current = next;
+                  recordingLimitInputRef.current = String(next);
+                }}
+              />
+              <span className="ui-record-bar-unit">s</span>
+            </span>
+          </label>
         </div>
       )}
 
@@ -846,6 +893,7 @@ function Toolbar(props: {
   recordingCount: number;
   recording: boolean;
   recordingSeconds: number;
+  recordingLimit: number;
   previewEnabled: boolean;
   portalContainer: HTMLElement;
   onTogglePreview: () => void;
@@ -921,7 +969,7 @@ function Toolbar(props: {
       )}
       {props.recording && (
         <span className="ui-timer">
-          <i /> {props.recordingSeconds}s
+          <i /> {Math.max(0, props.recordingLimit - props.recordingSeconds)}s
         </span>
       )}
       <span className="ui-count">

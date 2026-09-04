@@ -489,11 +489,14 @@ button {
 }
 .ui-record-bar-option {
   display: flex;
+  flex: 0 0 62px;
   flex-direction: column;
   align-items: center;
   gap: 5px;
+  width: 62px;
   min-width: 62px;
-  padding: 8px 10px;
+  max-width: 62px;
+  padding: 8px;
   border: 0;
   border-radius: 11px;
   background: transparent;
@@ -509,6 +512,68 @@ button {
 .ui-record-bar-option:hover {
   background: rgb(255 255 255 / 10%);
   color: #ffffff;
+}
+.ui-record-bar-duration {
+  position: relative;
+  display: flex;
+  flex: 0 0 62px;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 62px;
+  min-width: 62px;
+  max-width: 62px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 11px;
+  color: #cfd4db;
+  cursor: text;
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
+}
+.ui-record-bar-duration:hover {
+  background: rgb(255 255 255 / 10%);
+  color: #ffffff;
+}
+.ui-record-bar-duration:focus-within {
+  background: rgb(255 255 255 / 10%);
+  color: #ffffff;
+}
+.ui-record-bar-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 14px;
+}
+.ui-record-bar-input {
+  flex: 0 0 16px;
+  width: 16px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  outline: none;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.ui-record-bar-input::-webkit-outer-spin-button,
+.ui-record-bar-input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.ui-record-bar-unit {
+  font-size: 10px;
+  color: #9aa1ab;
+  letter-spacing: 0.02em;
+  pointer-events: none;
 }
 
 .ui-select-trigger {

@@ -27,7 +27,7 @@ export default defineContentScript({
     const portals = document.createElement("div");
     portals.id = "ui-helper-portals";
     shadow.append(style, mount, portals);
-    document.documentElement.append(host);
+    (document.body ?? document.documentElement).append(host);
 
     const root = createRoot(mount);
     root.render(<App host={host} portalContainer={portals} />);

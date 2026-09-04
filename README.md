@@ -2,7 +2,20 @@
 
 A Chrome/Edge visual feedback extension for local front-end projects. Select DOM elements, preview style changes, annotate regions, record GIFs, and copy complete context for a coding agent.
 
-## Build
+## Install before Chrome Web Store approval
+
+Until the Chrome Web Store review is complete, install the signed-off GitHub build manually:
+
+1. Open the [latest GitHub release](https://github.com/RiverAi7z/ui-helper/releases/latest).
+2. Download `ui-helper-v0.1.1-chrome.zip` and unzip it.
+3. Open `chrome://extensions` in Chrome or Edge.
+4. Enable **Developer mode**.
+5. Click **Load unpacked** and select the unzipped folder.
+6. Pin **UI Helper**, open the local page you want to review, and click the extension icon.
+
+Chrome may show a developer-mode warning because this build has not been verified by the Chrome Web Store. Only install release files from this repository. To update, download the newest release, replace the extracted folder, and click **Reload** on the extension card.
+
+## Build from source
 
 ```bash
 npm install
