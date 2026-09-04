@@ -1,0 +1,21 @@
+{
+  "name": "ui-helper",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @ui-helper/extension",
+    "test-page": "vite test-page --host 127.0.0.1",
+    "build": "npm run build -w @ui-helper/shared && npm run build -w @ui-helper/extension",
+    "check": "npm run check --workspaces --if-present",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2",
+    "vite": "^8.2.2"
+  }
+}

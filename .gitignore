@@ -1,0 +1,7 @@
+node_modules/
+.output/
+dist/
+.wxt/
+*.log
+.DS_Store
+.ui-helper/
