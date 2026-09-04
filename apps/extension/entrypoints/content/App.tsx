@@ -20,7 +20,6 @@ import {
   EyeOff,
   GripVertical,
   Link2,
-  Mic,
   MousePointer2,
   Scan,
   SquareDashedMousePointer,
@@ -1224,21 +1223,6 @@ function RecordingEditor(props: {
   onSave: () => void;
 }) {
   const panel = useMovablePanel(props.initialPosition);
-  const startSpeech = () => {
-    const SpeechRecognition = (
-      window as unknown as {
-        webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-      }
-    ).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-    const recognition = new SpeechRecognition();
-    recognition.lang = navigator.language;
-    recognition.onresult = (event) =>
-      props.onComment(
-        `${props.recording.comment}${props.recording.comment ? " " : ""}${event.results[0][0].transcript}`,
-      );
-    recognition.start();
-  };
 
   return (
     <div
@@ -1282,14 +1266,6 @@ function RecordingEditor(props: {
       </div>
       <div className="ui-editor-actions">
         <span className="ui-action-spacer" />
-        <Button
-          title="Dictate annotation"
-          size="icon"
-          variant="ghost"
-          onClick={startSpeech}
-        >
-          <Mic size={18} />
-        </Button>
         <Button variant="secondary" onClick={props.onCancel}>
           Cancel
         </Button>
@@ -1321,21 +1297,6 @@ function Editor(props: {
   const [expandedPadding, setExpandedPadding] = useState(false);
   const [expandedMargin, setExpandedMargin] = useState(false);
   const [dimensionsLinked, setDimensionsLinked] = useState(false);
-  const startSpeech = () => {
-    const SpeechRecognition = (
-      window as unknown as {
-        webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-      }
-    ).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-    const recognition = new SpeechRecognition();
-    recognition.lang = navigator.language;
-    recognition.onresult = (event) =>
-      props.onComment(
-        `${annotation.comment}${annotation.comment ? " " : ""}${event.results[0][0].transcript}`,
-      );
-    recognition.start();
-  };
 
   return (
     <div ref={panel.panelRef} className="ui-editor" style={panel.style}>
@@ -1543,14 +1504,6 @@ function Editor(props: {
           <Trash2 size={17} />
         </Button>
         <span className="ui-action-spacer" />
-        <Button
-          title="Dictate comment"
-          size="icon"
-          variant="ghost"
-          onClick={startSpeech}
-        >
-          <Mic size={18} />
-        </Button>
         <Button variant="secondary" onClick={props.onCancel}>
           Cancel
         </Button>
@@ -2040,12 +1993,4 @@ async function writeClipboard(text: string): Promise<void> {
   const copied = document.execCommand("copy");
   textarea.remove();
   if (!copied) throw new Error("Unable to copy feedback to the clipboard");
-}
-
-interface SpeechRecognitionLike {
-  lang: string;
-  onresult: (event: {
-    results: ArrayLike<{ 0: { transcript: string } }>;
-  }) => void;
-  start(): void;
 }

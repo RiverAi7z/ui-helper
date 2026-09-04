@@ -7,7 +7,7 @@ A Chrome/Edge visual feedback extension for local front-end projects. Select DOM
 Until the Chrome Web Store review is complete, install the signed-off GitHub build manually:
 
 1. Open the [latest GitHub release](https://github.com/RiverAi7z/ui-helper/releases/latest).
-2. Download `ui-helper-v0.1.3-chrome.zip` and unzip it.
+2. Download `ui-helper-v0.1.4-chrome.zip` and unzip it.
 3. Open `chrome://extensions` in Chrome or Edge.
 4. Enable **Developer mode**.
 5. Click **Load unpacked** and select the unzipped folder.
