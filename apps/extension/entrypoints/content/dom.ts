@@ -42,6 +42,20 @@ export const STYLE_PROPERTIES = [
 
 export type StyleProperty = (typeof STYLE_PROPERTIES)[number];
 
+// Blank page space resolves to body/html, not an editable component.
+// Share this guard between hover and click so neither can target the whole page.
+export function isInspectableElement(
+  target: Element | null,
+  host: HTMLElement,
+): target is HTMLElement {
+  return (
+    target instanceof HTMLElement &&
+    target !== target.ownerDocument.body &&
+    target !== target.ownerDocument.documentElement &&
+    !host.contains(target)
+  );
+}
+
 export function rectSnapshot(rect: DOMRect): RectSnapshot {
   return {
     x: rect.x,

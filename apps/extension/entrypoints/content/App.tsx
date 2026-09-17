@@ -15,6 +15,7 @@ import type {
 } from "../../lib/panel-protocol";
 import {
   STYLE_PROPERTIES,
+  isInspectableElement,
   isTextEditable,
   pageSnapshot,
   rectSnapshot,
@@ -130,9 +131,7 @@ export function App({ host }: { host: HTMLElement }) {
       frame = requestAnimationFrame(() => {
         const target = document.elementFromPoint(event.clientX, event.clientY);
         setHovered(
-          target instanceof HTMLElement && !host.contains(target)
-            ? target
-            : null,
+          isInspectableElement(target, host) ? target : null,
         );
       });
     };
@@ -145,7 +144,7 @@ export function App({ host }: { host: HTMLElement }) {
       )
         return;
       const target = document.elementFromPoint(event.clientX, event.clientY);
-      if (!(target instanceof HTMLElement)) return;
+      if (!isInspectableElement(target, host)) return;
       selectionLockRef.current = true;
       event.preventDefault();
       event.stopPropagation();

@@ -202,6 +202,16 @@ function SidePanel() {
     // Keep typing responsive while the DOM-owning content script applies edits.
     setState((current) => {
       if (!current) return current;
+      if (value.type === "recording-comment") {
+        return {
+          ...current,
+          recordings: current.recordings.map((recording) =>
+            recording.id === value.id
+              ? { ...recording, comment: value.value }
+              : recording,
+          ),
+        };
+      }
       if (
         current.selected &&
         "id" in value &&

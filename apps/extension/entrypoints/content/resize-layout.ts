@@ -71,6 +71,9 @@ export function isolateResizeLayout(element: HTMLElement): ResizeStyles {
     const next = clone(child);
     if (next) shadow.append(next);
   }
+  // Descendants copy inline visibility:visible !important, which overrides
+  // the shadow stylesheet. Hide the whole composited subtree, not just the host.
+  slot.style.setProperty("opacity", "0", "important");
   slot.style.setProperty("visibility", "hidden", "important");
   slot.style.setProperty("pointer-events", "none", "important");
   slot.style.setProperty("animation", "none", "important");
