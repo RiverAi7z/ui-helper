@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AppWindow, MousePointer2, Scan, Timer, X } from "lucide-react";
+import { MousePointer2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Editor, RecordingEditor, Toolbar } from "../../lib/panel-components";
 import { saveGifToDirectory, writeClipboard } from "../../lib/panel-files";
@@ -35,8 +35,6 @@ function SidePanel() {
     );
     return () => window.clearTimeout(timer);
   }, [state, error, connectionAttempt]);
-  const [recordBarOpen, setRecordBarOpen] = useState(false);
-  const [limit, setLimit] = useState("20");
   const [busy, setBusy] = useState(false);
   const portRef = useRef<chrome.runtime.Port | null>(null);
   const reconnectAttempts = useRef(0);
@@ -78,7 +76,6 @@ function SidePanel() {
       if (message.type === "PANEL_LOADING") {
         if (tabRef.current !== message.tabId) {
           setState(null);
-          setRecordBarOpen(false);
         }
         tabRef.current = message.tabId;
         setError("");
@@ -233,7 +230,12 @@ function SidePanel() {
       if (!result.ok) setError(result.error ?? "Action failed");
     });
   };
-  const startRecording = async (area: boolean) => {
+  const toggleRecordingOptions = async () => {
+    if (busy) return;
+    if (state?.recordBarOpen) {
+      send({ type: "record-options-toggle" });
+      return;
+    }
     const tabId = tabRef.current;
     setBusy(true);
     setError("");
@@ -246,24 +248,8 @@ function SidePanel() {
         ).showDirectoryPicker({ id: "ui-helper-project", mode: "readwrite" });
       if (tabId !== tabRef.current)
         throw new Error("The active tab changed. Start recording again.");
-      const normalized = Math.min(
-        60,
-        Math.max(1, Number.parseInt(limit, 10) || 20),
-      );
-      setLimit(String(normalized));
-      const updated = await command(
-        { type: "recording-limit", value: normalized },
-        tabId,
-      );
-      if (!updated.ok) throw new Error(updated.error);
-      const result = await command(
-        area
-          ? { type: "mode", mode: "record-area" }
-          : { type: "record-window" },
-        tabId,
-      );
+      const result = await command({ type: "record-options-toggle" }, tabId);
       if (!result.ok) throw new Error(result.error);
-      setRecordBarOpen(false);
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError"))
         setError(error instanceof Error ? error.message : String(error));
@@ -320,47 +306,9 @@ function SidePanel() {
             onStopRecording={() => send({ type: "record-stop" })}
             onExport={copy}
             busy={busy}
-            recordBarOpen={recordBarOpen}
-            onToggleRecordBar={() => setRecordBarOpen((value) => !value)}
+            recordBarOpen={state.recordBarOpen}
+            onToggleRecordBar={() => void toggleRecordingOptions()}
           />
-          {recordBarOpen && !state.recording && (
-            <div className="ui-record-bar">
-              <button
-                className="ui-record-bar-option"
-                disabled={busy}
-                onClick={() => void startRecording(false)}
-              >
-                <AppWindow size={18} />
-                Window
-              </button>
-              <button
-                className="ui-record-bar-option"
-                disabled={busy}
-                onClick={() => void startRecording(true)}
-              >
-                <Scan size={18} />
-                Area
-              </button>
-              <label className="ui-record-bar-duration">
-                <Timer size={18} />
-                <span className="ui-record-bar-value">
-                  <input
-                    className="ui-record-bar-input"
-                    aria-label="Recording limit seconds"
-                    inputMode="numeric"
-                    maxLength={2}
-                    value={limit}
-                    onChange={(event) =>
-                      setLimit(
-                        event.target.value.replace(/\D/g, "").slice(0, 2),
-                      )
-                    }
-                  />
-                  <span className="ui-record-bar-unit">s</span>
-                </span>
-              </label>
-            </div>
-          )}
           {selectedRecording && !state.recording && (
             <RecordingEditor
               key={selectedRecording.id}
@@ -409,12 +357,6 @@ function SidePanel() {
                 Inspect an element, annotate a region, or record a GIF to get
                 started.
               </p>
-              <Button
-                variant="secondary"
-                onClick={() => send({ type: "mode", mode: "inspect" })}
-              >
-                Inspect elements
-              </Button>
             </div>
           )}
         </>

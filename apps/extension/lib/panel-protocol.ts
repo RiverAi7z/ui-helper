@@ -26,6 +26,7 @@ export interface PanelState {
   selectedRecordingId: string | null;
   recording: boolean;
   recordingSeconds: number;
+  recordBarOpen: boolean;
   recordingLimit: number;
   previewEnabled: boolean;
   notice: string;
@@ -45,6 +46,7 @@ export type PanelCommand =
   | { type: "recording-limit"; value: number }
   | {
       type:
+        | "record-options-toggle"
         | "record-window"
         | "record-stop"
         | "export"

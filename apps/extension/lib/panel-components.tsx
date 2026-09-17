@@ -106,7 +106,7 @@ export function Toolbar(props: {
         disabled={props.recording || props.busy}
         onClick={props.onExport}
       >
-        <Copy size={16} /> Copy for AI
+        <Copy size={17} /> Copy for AI
       </Button>
     </div>
   );

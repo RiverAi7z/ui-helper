@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { RecordingOptions } from "../../lib/recording-options";
 import { clearResizeSlot, isolateResizeLayout } from "./resize-layout";
 import type {
   FeedbackAnnotation,
@@ -61,6 +62,7 @@ export function App({ host }: { host: HTMLElement }) {
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingLimit, setRecordingLimit] = useState(20);
+  const [recordBarOpen, setRecordBarOpen] = useState(false);
   const [activeRecordingScope, setActiveRecordingScope] = useState<
     "window" | "area"
   >("window");
@@ -692,6 +694,7 @@ export function App({ host }: { host: HTMLElement }) {
     recordingLimit,
     previewEnabled,
     notice,
+    recordBarOpen,
   };
   const panelStateRef = useRef(panelState);
   panelStateRef.current = panelState;
@@ -756,6 +759,9 @@ export function App({ host }: { host: HTMLElement }) {
         setRecordingLimit(limit);
         break;
       }
+      case "record-options-toggle":
+        if (!recording) setRecordBarOpen((open) => !open);
+        break;
       case "record-window":
         await startRecording();
         break;
@@ -787,6 +793,7 @@ export function App({ host }: { host: HTMLElement }) {
         if (!message.active) {
           setMode("idle");
           setHovered(null);
+          setRecordBarOpen(false);
         }
         respond({ ok: true });
       } else if (message.type === "PANEL_COMMAND" && message.command) {
@@ -823,12 +830,32 @@ export function App({ host }: { host: HTMLElement }) {
     recordingLimit,
     previewEnabled,
     notice,
+    recordBarOpen,
   ]);
 
   if (!active) return null;
 
   return (
     <div className="ui-layer">
+      {recordBarOpen && !recording && (
+        <RecordingOptions
+          limit={recordingLimit}
+          onLimit={(value) => {
+            recordingLimitRef.current = value;
+            setRecordingLimit(value);
+          }}
+          onClose={() => setRecordBarOpen(false)}
+          onWindow={() => {
+            setRecordBarOpen(false);
+            void startRecording().catch((error) => setNotice(String(error)));
+          }}
+          onArea={() => {
+            setRecordBarOpen(false);
+            setMode("record-area");
+            setNotice("Drag a rectangle around the area to record");
+          }}
+        />
+      )}
       {hovered && hoverRect && mode === "inspect" && !selected && (
         <>
           <Box rect={rectSnapshot(hoverRect)} className="ui-hover-box" />

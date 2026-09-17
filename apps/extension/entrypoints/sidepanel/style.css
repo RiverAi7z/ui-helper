@@ -2,24 +2,39 @@
 :root {
   color-scheme: dark;
   --ui-accent: #ffffff;
-  --ui-select: #087ff5;
-  --ui-recording-red: #ff3b30;
-  --ui-panel: #222222;
-  --ui-panel-2: #2a2a2a;
-  --ui-border: #464646;
-  --ui-muted: #a8a8a8;
-  --ui-text: #f4f4f4;
+  --ui-select: #0a84ff;
+  --ui-recording-red: #ff453a;
+  --ui-bg: #0d0e12;
+  --ui-panel: #17181d;
+  --ui-panel-2: #1e2026;
+  --ui-border: rgb(255 255 255 / 9%);
+  --ui-border-strong: rgb(255 255 255 / 14%);
+  --ui-muted: #9aa1ad;
+  --ui-muted-2: #6b7280;
+  --ui-text: #eef0f4;
+  --ui-ring: rgb(10 132 255 / 38%);
   font-family:
     Inter,
-    ui-sans-serif,
+    "SF Pro Text",
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
     sans-serif;
   font-size: 14px;
-  line-height: 1.35;
+  line-height: 1.4;
+  letter-spacing: 0.003em;
   color: var(--ui-text);
-  background: #16171b;
+  background: linear-gradient(180deg, #131419 0%, #0e0f13 100%);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+::selection {
+  color: #ffffff;
+  background: rgb(10 132 255 / 40%);
 }
 html,
 body,
@@ -47,8 +62,11 @@ body,
 }
 .ui-copy-button {
   margin-left: auto;
-  padding-inline: 10px;
+  gap: 7px;
+  padding-inline: 12px;
   white-space: nowrap;
+  font-size: 14px;
+  letter-spacing: 0.005em;
 }
 .ui-sidebar-header {
   gap: 8px;
@@ -60,12 +78,12 @@ body,
 .ui-sidebar-header .ui-count {
   display: inline-flex;
   margin: 0;
-  font-size: 10px;
-  padding: 4px 6px;
+  font-size: 10.5px;
+  padding: 4px 8px;
 }
 .ui-sidebar-header .ui-timer {
   margin: 0;
-  padding: 4px 6px;
+  padding: 4px 8px;
 }
 .ui-sidebar .ui-editor {
   width: 100%;
