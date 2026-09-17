@@ -1,0 +1,89 @@
+.ui-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  background: linear-gradient(180deg, #14151a 0%, #0f1015 100%);
+  border-right: 1px solid rgb(255 255 255 / 7%);
+  pointer-events: auto;
+  z-index: 100;
+}
+.ui-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgb(255 255 255 / 6%);
+}
+.ui-sidebar .ui-toolbar,
+.ui-sidebar .ui-editor,
+.ui-sidebar .ui-record-bar {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  backdrop-filter: none;
+}
+.ui-sidebar .ui-toolbar {
+  padding: 10px;
+  border-bottom: 1px solid rgb(255 255 255 / 6%);
+}
+.ui-sidebar-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 28px;
+  text-align: center;
+  color: var(--ui-muted);
+}
+.ui-sidebar-empty > svg {
+  color: #565d68;
+}
+.ui-sidebar-empty p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.ui-sidebar-empty strong {
+  color: var(--ui-text);
+  font-size: 14px;
+  letter-spacing: 0.01em;
+}
+.ui-editor-prompt,
+.ui-editor-title,
+.ui-editor-actions {
+  flex-shrink: 0;
+}
+.ui-prompt-icon {
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.ui-sidebar .ui-notice {
+  margin: 10px;
+  border-radius: 10px;
+}
+
+@media (max-width: 680px) {
+  .ui-count {
+    display: none;
+  }
+  .ui-editor {
+    width: calc(100vw - 18px);
+  }
+  .ui-field {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+  .ui-spacing-heading {
+    width: 106px;
+  }
+  .ui-spacing-row {
+    margin-left: 106px;
+  }
+}

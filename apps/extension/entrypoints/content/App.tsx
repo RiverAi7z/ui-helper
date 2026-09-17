@@ -1,12 +1,26 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { RecordingOptions } from "../../lib/recording-options";
-import { clearResizeSlot, isolateResizeLayout } from "./resize-layout";
+import { normalizeRecordingLimit } from "../../lib/recording-limit";
+import { encodeAndSaveRecording } from "../../lib/recording-client";
+import { clearResizeSlot } from "./resize-layout";
+import { Box, InspectorTip } from "./overlays";
+import { ElementTransform } from "./element-transform";
+import { buildMarkdown, sessionId } from "../../lib/feedback-markdown";
+import {
+  applyAnnotationEdits,
+  applyStyles,
+  createElementAnnotation,
+  createRegionAnnotation,
+  normalizeRegion,
+  restoreElementState,
+  styleDeltas,
+  type LocalAnnotation,
+} from "./annotations";
 import type {
   FeedbackAnnotation,
   FeedbackSession,
   RectSnapshot,
-  StyleDelta,
 } from "@ui-helper/shared";
 import type {
   Mode,
@@ -20,26 +34,8 @@ import {
   isTextEditable,
   pageSnapshot,
   rectSnapshot,
-  snapshotElement,
   type StyleProperty,
 } from "./dom";
-
-interface OriginalStyle {
-  value: string;
-  priority: string;
-}
-
-interface LocalAnnotation extends FeedbackAnnotation {
-  element?: HTMLElement;
-  originalInline: Partial<Record<StyleProperty, OriginalStyle>>;
-  styles: Partial<Record<StyleProperty, string>>;
-  originalText?: string;
-  text?: string;
-  saved: boolean;
-  layoutIsolated?: boolean;
-}
-
-type Point = { x: number; y: number };
 
 export function App({ host }: { host: HTMLElement }) {
   const [active, setActive] = useState(false);
@@ -171,9 +167,7 @@ export function App({ host }: { host: HTMLElement }) {
       } else if (existing.element !== target) {
         if (existing.element) clearResizeSlot(existing.element);
         if (previewEnabled) {
-          applyStyles(target, existing.styles, existing.layoutIsolated);
-          if (existing.text !== undefined && isTextEditable(target))
-            target.textContent = existing.text;
+          applyAnnotationEdits(target, existing);
         }
         setAnnotations((items) =>
           items.map((item) =>
@@ -288,9 +282,7 @@ export function App({ host }: { host: HTMLElement }) {
             replacement = null;
           }
           if (!(replacement instanceof HTMLElement)) return item;
-          applyStyles(replacement, item.styles, item.layoutIsolated);
-          if (item.text !== undefined && isTextEditable(replacement))
-            replacement.textContent = item.text;
+          applyAnnotationEdits(replacement, item);
           changed = true;
           return { ...item, element: replacement };
         });
@@ -354,10 +346,7 @@ export function App({ host }: { host: HTMLElement }) {
     );
   };
 
-  const openRecordingEditor = (
-    recordingAsset: RecordingAsset,
-    origin: Point,
-  ) => {
+  const openRecordingEditor = (recordingAsset: RecordingAsset) => {
     recordingCommentBaselineRef.current = {
       id: recordingAsset.id,
       comment: recordingAsset.comment,
@@ -447,27 +436,12 @@ export function App({ host }: { host: HTMLElement }) {
     );
   };
 
-  const restoreAnnotation = useCallback((annotation: LocalAnnotation) => {
-    restoreElementState(annotation);
-  }, []);
-
   const togglePreview = () => {
     setPreviewEnabled((enabled) => {
       for (const annotation of annotationsRef.current) {
         if (!annotation.element) continue;
-        if (enabled) restoreAnnotation(annotation);
-        else {
-          applyStyles(
-            annotation.element,
-            annotation.styles,
-            annotation.layoutIsolated,
-          );
-          if (
-            annotation.text !== undefined &&
-            isTextEditable(annotation.element)
-          )
-            annotation.element.textContent = annotation.text;
-        }
+        if (enabled) restoreElementState(annotation);
+        else applyAnnotationEdits(annotation.element, annotation);
       }
       return !enabled;
     });
@@ -476,23 +450,16 @@ export function App({ host }: { host: HTMLElement }) {
   const cancelEditor = () => {
     if (!selected) return;
     if (!selected.saved) {
-      restoreAnnotation(selected);
+      restoreElementState(selected);
       setAnnotations((items) =>
         items.filter((item) => item.id !== selected.id),
       );
     } else {
       const baseline = editBaselineRef.current;
       if (baseline?.id === selected.id) {
-        restoreAnnotation(selected);
-        if (selected.element && previewEnabled) {
-          applyStyles(
-            selected.element,
-            baseline.styles,
-            baseline.layoutIsolated,
-          );
-          if (baseline.text !== undefined && isTextEditable(selected.element))
-            selected.element.textContent = baseline.text;
-        }
+        restoreElementState(selected);
+        if (selected.element && previewEnabled)
+          applyAnnotationEdits(selected.element, baseline);
         updateAnnotation(selected.id, {
           styles: baseline.styles,
           layoutIsolated: baseline.layoutIsolated,
@@ -506,7 +473,7 @@ export function App({ host }: { host: HTMLElement }) {
   };
 
   const deleteAnnotation = (annotation: LocalAnnotation) => {
-    restoreAnnotation(annotation);
+    restoreElementState(annotation);
     setAnnotations((items) =>
       items.filter((item) => item.id !== annotation.id),
     );
@@ -564,40 +531,12 @@ export function App({ host }: { host: HTMLElement }) {
     setRecording(false);
     setActiveRecordingRegion(undefined);
     setNotice("Encoding and saving GIF…");
-    const response = await chrome.runtime.sendMessage({
-      type: "STOP_RECORDING",
-    });
-    if (!response?.ok) {
-      setNotice(response?.error ?? "Unable to encode GIF");
+    const result = await encodeAndSaveRecording(completedScope, completedRegion);
+    if (!result.ok) {
+      setNotice(result.error);
       return;
     }
-    const filename = `recording-${new Date()
-      .toISOString()
-      .replace(/[-:.TZ]/g, "")
-      .slice(0, 14)}-${crypto.randomUUID().slice(0, 6)}.gif`;
-    const saved = await chrome.runtime.sendMessage({
-      type: "PANEL_SAVE_GIF",
-      dataUrl: response.dataUrl,
-      filename,
-    });
-    if (!saved?.ok) {
-      setNotice(
-        saved?.error ??
-          "Unable to save GIF. Keep the sidebar open while recording.",
-      );
-      return;
-    }
-    const relativePath = saved.relativePath as string;
-    const recordingAsset: RecordingAsset = {
-      id: crypto.randomUUID(),
-      relativePath,
-      width: response.width,
-      height: response.height,
-      frames: response.frames,
-      comment: "",
-      scope: completedScope,
-      region: completedRegion,
-    };
+    const recordingAsset = result.asset;
     setRecordings((items) => [...items, recordingAsset]);
     // Finishing a recording must not dismiss an element/region draft, including
     // one opened while the GIF was being encoded. Its tag can open the GIF later.
@@ -609,7 +548,7 @@ export function App({ host }: { host: HTMLElement }) {
       selectionLockRef.current = true;
       setSelectedRecordingId(recordingAsset.id);
     }
-    setNotice(`GIF saved to ${relativePath}`);
+    setNotice(`GIF saved to ${recordingAsset.relativePath}`);
   }, [recording]);
 
   const exportForAi = () => {
@@ -651,7 +590,7 @@ export function App({ host }: { host: HTMLElement }) {
 
   const completeExport = () => {
     for (const annotation of annotationsRef.current)
-      restoreAnnotation(annotation);
+      restoreElementState(annotation);
     setAnnotations([]);
     setRecordings([]);
     setSelectedId(null);
@@ -751,10 +690,7 @@ export function App({ host }: { host: HTMLElement }) {
         break;
       case "recording-limit": {
         if (recording) break;
-        const limit = Math.min(
-          60,
-          Math.max(1, Math.round(command.value) || 20),
-        );
+        const limit = normalizeRecordingLimit(command.value);
         recordingLimitRef.current = limit;
         setRecordingLimit(limit);
         break;
@@ -902,12 +838,11 @@ export function App({ host }: { host: HTMLElement }) {
                   }}
                   onRestore={(styles, layoutIsolated) => {
                     restoreElementState(annotation);
-                    applyStyles(annotation.element!, styles, layoutIsolated);
-                    if (
-                      annotation.text !== undefined &&
-                      isTextEditable(annotation.element!)
-                    )
-                      annotation.element!.textContent = annotation.text;
+                    applyAnnotationEdits(annotation.element!, {
+                      styles,
+                      layoutIsolated,
+                      text: annotation.text,
+                    });
                     updateAnnotation(annotation.id, { styles, layoutIsolated });
                   }}
                 />
@@ -922,7 +857,7 @@ export function App({ host }: { host: HTMLElement }) {
                     ? 32
                     : 12),
               }}
-              onClick={(event) => {
+              onClick={() => {
                 recordingCommentBaselineRef.current = null;
                 selectionLockRef.current = true;
                 setSelectedRecordingId(null);
@@ -946,12 +881,7 @@ export function App({ host }: { host: HTMLElement }) {
                 style={{ top: 18 + index * 34 }}
                 key={recordingAsset.id}
                 title="Annotate recording"
-                onClick={(event) =>
-                  openRecordingEditor(recordingAsset, {
-                    x: event.clientX,
-                    y: event.clientY,
-                  })
-                }
+                onClick={() => openRecordingEditor(recordingAsset)}
               >
                 GIF {index + 1} · Window
               </button>
@@ -970,12 +900,7 @@ export function App({ host }: { host: HTMLElement }) {
                 }`}
                 style={{ left: rect.x, top: Math.max(8, rect.y - 29) }}
                 title="Annotate recording"
-                onClick={(event) =>
-                  openRecordingEditor(recordingAsset, {
-                    x: event.clientX,
-                    y: event.clientY,
-                  })
-                }
+                onClick={() => openRecordingEditor(recordingAsset)}
               >
                 GIF {index + 1} · Area
               </button>
@@ -1014,455 +939,4 @@ export function App({ host }: { host: HTMLElement }) {
       )}
     </div>
   );
-}
-
-function Box({ rect, className }: { rect: RectSnapshot; className: string }) {
-  return (
-    <div
-      className={className}
-      style={{
-        left: rect.x,
-        top: rect.y,
-        width: rect.width,
-        height: rect.height,
-      }}
-    />
-  );
-}
-
-type TransformHandle =
-  "move" | "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
-
-function ElementTransform({
-  rect,
-  element,
-  styles: savedStyles,
-  layoutIsolated = false,
-  onChange,
-  onRestore,
-}: {
-  rect: RectSnapshot;
-  element: HTMLElement;
-  styles: LocalAnnotation["styles"];
-  layoutIsolated?: boolean;
-  onChange: (styles: LocalAnnotation["styles"], isolated: boolean) => void;
-  onRestore: (styles: LocalAnnotation["styles"], isolated: boolean) => void;
-}) {
-  const gesture = useRef<{
-    pointerId: number;
-    x: number;
-    y: number;
-    handle: TransformHandle;
-    width: number;
-    height: number;
-    left: number;
-    top: number;
-    scaleX: number;
-    scaleY: number;
-    position: string;
-    isolated: boolean;
-    originalIsolated: boolean;
-    baseStyles: LocalAnnotation["styles"];
-    original: LocalAnnotation["styles"];
-  } | null>(null);
-
-  const start = (
-    event: React.PointerEvent<HTMLDivElement>,
-    handle: TransformHandle,
-  ) => {
-    if (event.button !== 0 || gesture.current) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const baseStyles = handle === "move" ? {} : isolateResizeLayout(element);
-    const computed = getComputedStyle(element);
-    const bounds = element.getBoundingClientRect();
-    const number = (property: string) =>
-      parseFloat(computed.getPropertyValue(property)) || 0;
-    const borderBox = computed.boxSizing === "border-box";
-    const width = parseFloat(computed.width);
-    const height = parseFloat(computed.height);
-    gesture.current = {
-      pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      handle,
-      width: Number.isFinite(width)
-        ? width
-        : element.offsetWidth -
-          (borderBox
-            ? 0
-            : number("padding-left") +
-              number("padding-right") +
-              number("border-left-width") +
-              number("border-right-width")),
-      height: Number.isFinite(height)
-        ? height
-        : element.offsetHeight -
-          (borderBox
-            ? 0
-            : number("padding-top") +
-              number("padding-bottom") +
-              number("border-top-width") +
-              number("border-bottom-width")),
-      left: computed.position === "static" ? 0 : number("left"),
-      top: computed.position === "static" ? 0 : number("top"),
-      scaleX: Number.isFinite(width)
-        ? bounds.width /
-            (width +
-              (borderBox
-                ? 0
-                : number("padding-left") +
-                  number("padding-right") +
-                  number("border-left-width") +
-                  number("border-right-width"))) || 1
-        : 1,
-      scaleY: Number.isFinite(height)
-        ? bounds.height /
-            (height +
-              (borderBox
-                ? 0
-                : number("padding-top") +
-                  number("padding-bottom") +
-                  number("border-top-width") +
-                  number("border-bottom-width"))) || 1
-        : 1,
-      position: computed.position === "static" ? "relative" : computed.position,
-      isolated: layoutIsolated || Object.keys(baseStyles).length > 0,
-      originalIsolated: layoutIsolated,
-      baseStyles,
-      original: { ...savedStyles },
-    };
-    event.currentTarget
-      .closest<HTMLElement>(".ui-element-transform")!
-      .setPointerCapture(event.pointerId);
-  };
-  const move = (event: React.PointerEvent<HTMLDivElement>) => {
-    const current = gesture.current;
-    if (!current || current.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const dx = (event.clientX - current.x) / current.scaleX;
-    const dy = (event.clientY - current.y) / current.scaleY;
-    const { handle } = current;
-    const styles: LocalAnnotation["styles"] = {
-      ...current.baseStyles,
-      position: current.position,
-    };
-    const px = (value: number) => `${Math.round(value * 100) / 100}px`;
-    if (handle === "move") {
-      styles.left = px(current.left + dx);
-      styles.top = px(current.top + dy);
-    } else {
-      if (handle.includes("e") || handle.includes("w")) {
-        const width = Math.max(
-          1,
-          current.width + (handle.includes("w") ? -dx : dx),
-        );
-        styles.width = px(width);
-        if (handle.includes("w"))
-          styles.left = px(current.left + current.width - width);
-      }
-      if (handle.includes("n") || handle.includes("s")) {
-        const height = Math.max(
-          1,
-          current.height + (handle.includes("n") ? -dy : dy),
-        );
-        styles.height = px(height);
-        if (handle.includes("n"))
-          styles.top = px(current.top + current.height - height);
-      }
-    }
-    onChange(styles, current.isolated);
-  };
-  return (
-    <div
-      className="ui-element-transform"
-      title="Drag to move; drag handles to resize"
-      style={{
-        left: rect.x,
-        top: rect.y,
-        width: rect.width,
-        height: rect.height,
-      }}
-      onPointerDown={(event) => start(event, "move")}
-      onPointerMove={move}
-      onPointerUp={(event) => {
-        if (gesture.current?.pointerId !== event.pointerId) return;
-        move(event);
-        gesture.current = null;
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      }}
-      onPointerCancel={() => {
-        if (gesture.current)
-          onRestore(gesture.current.original, gesture.current.originalIsolated);
-        gesture.current = null;
-      }}
-      onLostPointerCapture={() => {
-        if (gesture.current)
-          onRestore(gesture.current.original, gesture.current.originalIsolated);
-        gesture.current = null;
-      }}
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-    >
-      {(["n", "s", "e", "w", "ne", "nw", "se", "sw"] as const).map((handle) => (
-        <div
-          key={handle}
-          className={`ui-transform-handle ui-transform-${handle}`}
-          title={`Resize ${handle}`}
-          onPointerDown={(event) => start(event, handle)}
-        />
-      ))}
-    </div>
-  );
-}
-
-function InspectorTip({
-  element,
-  rect,
-}: {
-  element: HTMLElement;
-  rect: DOMRect;
-}) {
-  const computed = getComputedStyle(element);
-  const top =
-    rect.top > 95
-      ? rect.top - 88
-      : Math.min(window.innerHeight - 88, rect.bottom + 8);
-  return (
-    <div
-      className="ui-inspector-tip"
-      style={{
-        left: Math.max(8, Math.min(window.innerWidth - 300, rect.left)),
-        top,
-      }}
-    >
-      <div>
-        <strong>{element.tagName.toLowerCase()}</strong>
-        <span>
-          {Math.round(rect.width)}×{Math.round(rect.height)}
-        </span>
-      </div>
-      <div>
-        <span>color</span>
-        <strong>{computed.color}</strong>
-      </div>
-      <div>
-        <span>font</span>
-        <strong>
-          {computed.fontSize} {computed.fontFamily}
-        </strong>
-      </div>
-    </div>
-  );
-}
-
-function createElementAnnotation(
-  element: HTMLElement,
-  index: number,
-): LocalAnnotation {
-  const snapshot = snapshotElement(element);
-  const originalInline: LocalAnnotation["originalInline"] = {};
-  const styles: LocalAnnotation["styles"] = {};
-  for (const property of STYLE_PROPERTIES) {
-    originalInline[property] = {
-      value: element.style.getPropertyValue(property),
-      priority: element.style.getPropertyPriority(property),
-    };
-  }
-  const editable = isTextEditable(element);
-  return {
-    id: crypto.randomUUID(),
-    index,
-    kind: "element",
-    comment: "",
-    target: snapshot,
-    styleDeltas: [],
-    artifactPaths: [],
-    element,
-    originalInline,
-    styles,
-    originalText: editable ? (element.textContent ?? "") : undefined,
-    text: editable ? (element.textContent ?? "") : undefined,
-    saved: false,
-  };
-}
-
-function createRegionAnnotation(
-  region: RectSnapshot,
-  index: number,
-): LocalAnnotation {
-  return {
-    id: crypto.randomUUID(),
-    index,
-    kind: "region",
-    comment: "",
-    region: {
-      ...region,
-      pageX: region.x + window.scrollX,
-      pageY: region.y + window.scrollY,
-    },
-    styleDeltas: [],
-    artifactPaths: [],
-    originalInline: {},
-    styles: {},
-    saved: false,
-  };
-}
-
-function normalizeRegion(
-  start: { x: number; y: number },
-  end: { x: number; y: number },
-): RectSnapshot {
-  const x = Math.min(start.x, end.x);
-  const y = Math.min(start.y, end.y);
-  return {
-    x,
-    y,
-    width: Math.abs(end.x - start.x),
-    height: Math.abs(end.y - start.y),
-    pageX: x + window.scrollX,
-    pageY: y + window.scrollY,
-  };
-}
-
-function restoreElementState(annotation: LocalAnnotation): void {
-  if (!annotation.element) return;
-  clearResizeSlot(annotation.element);
-  for (const property of STYLE_PROPERTIES) {
-    const original = annotation.originalInline[property];
-    if (original?.value)
-      annotation.element.style.setProperty(
-        property,
-        original.value,
-        original.priority,
-      );
-    else annotation.element.style.removeProperty(property);
-  }
-  if (
-    annotation.originalText !== undefined &&
-    isTextEditable(annotation.element)
-  )
-    annotation.element.textContent = annotation.originalText;
-}
-
-function applyStyles(
-  element: HTMLElement,
-  styles: LocalAnnotation["styles"],
-  layoutIsolated = false,
-): void {
-  if (layoutIsolated) isolateResizeLayout(element);
-  Object.entries(styles).forEach(([property, value]) => {
-    if (value !== undefined)
-      element.style.setProperty(property, value, "important");
-  });
-}
-
-function styleDeltas(annotation: LocalAnnotation): StyleDelta[] {
-  const deltas: StyleDelta[] = STYLE_PROPERTIES.flatMap((property) => {
-    const before = annotation.target?.computedStyles[property] ?? "";
-    const after = annotation.styles[property] ?? before;
-    return before.trim() === after.trim() ? [] : [{ property, before, after }];
-  });
-  if (annotation.layoutIsolated) {
-    deltas.unshift({
-      property: "layout",
-      before: "normal flow",
-      after:
-        "Preserve the original layout footprint while resizing; the editor uses an inert layout placeholder.",
-    });
-  }
-  if (
-    annotation.originalText !== undefined &&
-    annotation.text !== undefined &&
-    annotation.originalText !== annotation.text
-  ) {
-    deltas.unshift({
-      property: "textContent",
-      before: annotation.originalText,
-      after: annotation.text,
-    });
-  }
-  return deltas;
-}
-
-function sessionId(): string {
-  return `${new Date()
-    .toISOString()
-    .replace(/[-:.TZ]/g, "")
-    .slice(0, 14)}-${crypto.randomUUID().slice(0, 8)}`;
-}
-
-function buildMarkdown(
-  session: FeedbackSession,
-  recordings: RecordingAsset[],
-): string {
-  const lines = ["# UI feedback", "", `Page: ${session.page.url}`, ""];
-  for (const annotation of session.annotations) {
-    if (annotation.target) {
-      lines.push(`## ${annotation.index}. \`${annotation.target.selector}\``);
-      if (annotation.comment) lines.push(annotation.comment, "");
-
-      const textDelta = annotation.styleDeltas.find(
-        (delta) => delta.property === "textContent",
-      );
-      if (textDelta)
-        lines.push(
-          `Text: \`${textDelta.before}\` → \`${textDelta.after}\``,
-          "",
-        );
-
-      const styleChanges = annotation.styleDeltas.filter(
-        (delta) => delta.property !== "textContent",
-      );
-      if (styleChanges.length) {
-        lines.push("```css");
-        for (const delta of styleChanges)
-          lines.push(`${delta.property}: ${delta.before} → ${delta.after};`);
-        lines.push("```", "");
-      }
-
-      lines.push("```html", compactHtml(annotation.target.outerHTML), "```");
-    } else if (annotation.region) {
-      lines.push(`## ${annotation.index}. Region`);
-      if (annotation.comment) lines.push(annotation.comment, "");
-      lines.push(
-        `Area: x=${Math.round(annotation.region.pageX)}, y=${Math.round(annotation.region.pageY)}, ${Math.round(annotation.region.width)}×${Math.round(annotation.region.height)}`,
-      );
-    }
-    lines.push("");
-  }
-
-  recordings.forEach((recording, index) => {
-    lines.push(`## Recording ${index + 1}`);
-    if (recording.comment) lines.push(recording.comment, "");
-    lines.push(`@${recording.relativePath}`);
-    if (recording.region)
-      lines.push(
-        `Area: x=${Math.round(recording.region.pageX)}, y=${Math.round(recording.region.pageY)}, ${Math.round(recording.region.width)}×${Math.round(recording.region.height)}`,
-      );
-    lines.push("");
-  });
-
-  return lines.join("\n").trim();
-}
-
-function compactHtml(html: string): string {
-  const compact = html
-    .replace(/>\s+</g, "><")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-  if (compact.length <= 800) return compact;
-
-  const template = document.createElement("template");
-  template.innerHTML = compact;
-  const element = template.content.firstElementChild;
-  if (!element) return `${compact.slice(0, 797)}...`;
-
-  const shallow = element.cloneNode(false) as Element;
-  const text = element.textContent?.trim().replace(/\s+/g, " ") ?? "";
-  shallow.textContent = text.length > 240 ? `${text.slice(0, 237)}...` : text;
-  return shallow.outerHTML;
 }

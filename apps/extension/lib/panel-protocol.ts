@@ -1,5 +1,5 @@
 import type { FeedbackAnnotation, RectSnapshot } from "@ui-helper/shared";
-import type { StyleProperty } from "../entrypoints/content/dom";
+import type { StyleProperty } from "./style-properties";
 
 export type Mode = "idle" | "inspect" | "region" | "record-area";
 export interface PanelAnnotation extends FeedbackAnnotation {
@@ -59,3 +59,18 @@ export interface CommandResult {
   error?: string;
   text?: string;
 }
+
+/** Existing wire envelopes. These types add no runtime validation or new keys. */
+export type PanelPortMessage =
+  | { type: "PANEL_HELLO"; windowId?: number; visible?: boolean }
+  | { type: "PANEL_VISIBLE"; visible?: boolean }
+  | { type: "PANEL_PING" }
+  | { type: "PANEL_COMMAND"; id?: string; tabId?: number; command?: PanelCommand }
+  | { type: "PANEL_FILE_RESULT"; id?: string; result?: unknown };
+
+export type WorkerPanelMessage =
+  | { type: "PANEL_LOADING"; tabId: number }
+  | { type: "PANEL_STATE"; tabId: number; state: PanelState }
+  | { type: "PANEL_ERROR"; tabId: number; error: string }
+  | { type: "PANEL_RESULT"; id: string; result?: CommandResult }
+  | { type: "PANEL_SAVE_GIF"; id: string; dataUrl: string; filename: string };

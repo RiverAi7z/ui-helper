@@ -1,0 +1,327 @@
+[
+  {
+    "name": "Heading",
+    "selector": "h1",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 19.9921875
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Paragraph",
+    "selector": ".hero-copy",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Flex button",
+    "selector": "#theme-button",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Flex text",
+    "selector": ".type-large",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 39.9921875,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Grid swatch",
+    "selector": ".swatch.coral",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Block card",
+    "selector": ".glass-card",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Outer box",
+    "selector": ".margin-demo",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Padding box",
+    "selector": ".padding-demo",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Inner content box",
+    "selector": ".content-demo",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Flex avatar",
+    "selector": ".avatar",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Flex growing text group",
+    "selector": ".profile-copy",
+    "skipped": "Error: No unobstructed point on target"
+  },
+  {
+    "name": "Flex column text",
+    "selector": ".profile-copy strong",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Nested card",
+    "selector": ".profile-card",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Grid list item",
+    "selector": ".metrics li:first-child",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 39.9921875,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Grid panel",
+    "selector": ".color-panel",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Grid navigation link",
+    "selector": ".brand",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 39.984375,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Centered grid card",
+    "selector": ".motion-card",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Absolute decoration",
+    "selector": ".orbit-two",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Canvas",
+    "selector": "#demo-canvas",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 19.984375
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Progress block",
+    "selector": ".progress",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 40,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  },
+  {
+    "name": "Inline emphasized text",
+    "selector": "h1 em",
+    "movement": {
+      "dx": 25,
+      "dy": 15
+    },
+    "moveChanges": [],
+    "size": {
+      "dw": 39.9921875,
+      "dh": 20
+    },
+    "resizeChanges": [],
+    "cancelChanges": [],
+    "restored": true
+  }
+]

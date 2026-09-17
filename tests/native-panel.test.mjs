@@ -1,20 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import vm from "node:vm";
-import ts from "typescript";
+import { loadTypeScript } from "./helpers/load-typescript.mjs";
 import { connectPage } from "../apps/extension/lib/connect-page.ts";
 
-const source = await readFile(
-  new URL("../apps/extension/entrypoints/background.ts", import.meta.url),
-  "utf8",
-);
-const js = ts.transpileModule(source, {
-  compilerOptions: {
-    module: ts.ModuleKind.CommonJS,
-    target: ts.ScriptTarget.ES2022,
-  },
-}).outputText;
 test("handshake retries React readiness without relying on PANEL_READY", async () => {
   let probes = 0,
     injections = 0;
@@ -110,15 +98,10 @@ function setup() {
     },
     runtime: { onConnect: event(), onMessage: event() },
   };
-  vm.runInNewContext(js, {
-    chrome,
-    exports: {},
-    require: () => ({ connectPage }),
-    defineBackground: (fn) => fn(),
-    crypto,
-    setTimeout,
-    clearTimeout,
-  });
+  loadTypeScript(
+    new URL("../apps/extension/entrypoints/background.ts", import.meta.url),
+    { chrome, defineBackground: (fn) => fn(), crypto, setTimeout, clearTimeout },
+  );
   const port = {
     name: "ui-helper-panel",
     sender: {},
@@ -257,4 +240,70 @@ test("file requests stay on their owning port and fail cleanly on close", async 
   );
   env.port.onDisconnect.emit();
   assert.equal(result.ok, false);
+});
+
+test("a second port cannot complete another panel's file request", async () => {
+  const env = setup();
+  await settle();
+  const other = {
+    name: "ui-helper-panel", sender: {}, onMessage: event(), onDisconnect: event(), postMessage() {},
+  };
+  env.chrome.runtime.onConnect.emit(other);
+  let result;
+  env.chrome.runtime.onMessage.emit(
+    { type: "PANEL_SAVE_GIF", dataUrl: "data:", filename: "owned.gif" },
+    { tab: { id: 11 }, frameId: 0 },
+    value => { result = value; },
+  );
+  const request = env.posted.at(-1);
+  other.onMessage.emit({ type: "PANEL_FILE_RESULT", id: request.id, result: { ok: true } });
+  assert.equal(result, undefined);
+  env.port.onMessage.emit({ type: "PANEL_FILE_RESULT", id: request.id, result: { ok: true } });
+  assert.equal(result.ok, true);
+  other.onDisconnect.emit();
+  env.port.onDisconnect.emit();
+});
+
+test("activation only reconnects the panel belonging to that browser window", async () => {
+  const env = setup();
+  await settle();
+  env.chrome.tabs.query = async ({ windowId }) => [{ id: windowId === 2 ? 22 : 11 }];
+  const posted = [];
+  const other = {
+    name: "ui-helper-panel", sender: {}, onMessage: event(), onDisconnect: event(),
+    postMessage: message => posted.push(message),
+  };
+  env.chrome.runtime.onConnect.emit(other);
+  other.onMessage.emit({ type: "PANEL_HELLO", windowId: 2 });
+  await settle();
+  env.sent.length = 0;
+  env.posted.length = 0;
+  posted.length = 0;
+  env.chrome.tabs.onActivated.emit({ tabId: 33, windowId: 2 });
+  await settle();
+  assert.equal(env.posted.length, 0);
+  assert.ok(posted.some(message => message.type === "PANEL_STATE" && message.tabId === 33));
+  assert.ok(!env.sent.some(message => message.tabId === 11));
+  other.onDisconnect.emit();
+  env.port.onDisconnect.emit();
+});
+
+test("late attachment state cannot replace the newly active tab", async () => {
+  const env = setup();
+  await settle();
+  let release;
+  env.chrome.tabs.sendMessage = async (tabId, message) => {
+    if (tabId === 22 && message.type === "PANEL_ATTACH")
+      return new Promise(resolve => { release = resolve; });
+    return { ok: true, state: { tabId } };
+  };
+  env.chrome.tabs.onActivated.emit({ tabId: 22, windowId: 1 });
+  await settle();
+  env.chrome.tabs.onActivated.emit({ tabId: 33, windowId: 1 });
+  await settle();
+  env.posted.length = 0;
+  release({ ok: true, state: { stale: true } });
+  await settle();
+  assert.equal(env.posted.length, 0);
+  env.port.onDisconnect.emit();
 });

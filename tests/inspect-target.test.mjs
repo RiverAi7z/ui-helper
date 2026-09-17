@@ -1,14 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import vm from "node:vm";
-import ts from "typescript";
-
-const source = await readFile(
-  new URL("../apps/extension/entrypoints/content/dom.ts", import.meta.url),
-  "utf8",
-);
-const exports = {};
+import { loadTypeScript } from "./helpers/load-typescript.mjs";
 class HTMLElement {
   constructor(document) {
     this.ownerDocument = document;
@@ -17,13 +9,10 @@ class HTMLElement {
     return target === this || target.parent === this;
   }
 }
-vm.runInNewContext(
-  ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS },
-  }).outputText,
-  { exports, HTMLElement },
+const { isInspectableElement } = loadTypeScript(
+  new URL("../apps/extension/entrypoints/content/dom.ts", import.meta.url),
+  { HTMLElement },
 );
-const { isInspectableElement } = exports;
 
 test("inspect excludes document roots and helper UI, but allows components", () => {
   const document = {};

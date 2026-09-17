@@ -1,4 +1,4 @@
-import type { StyleProperty } from "./dom";
+import type { StyleProperty } from "../../lib/style-properties";
 
 export type ResizeStyles = Partial<Record<StyleProperty, string>>;
 const slots = new WeakMap<HTMLElement, HTMLElement>();

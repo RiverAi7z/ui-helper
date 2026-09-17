@@ -89,14 +89,12 @@ assert.equal(
   await panel.evaluate(() => !!document.querySelector(".ui-record-bar-close")),
   false,
 );
-// The existing camera toggle still closes/reopens recording options.
+// Recording controls are page-owned; the panel owns the permission gesture.
+await page.waitForSelector(".ui-record-bar");
 await panel.click('button[title="Record a GIF"]');
-assert.equal(
-  await panel.evaluate(() => !!document.querySelector(".ui-record-bar")),
-  false,
-);
+await page.waitForSelector(".ui-record-bar", { state: "detached" });
 await panel.click('button[title="Record a GIF"]');
-await panel.click('button:text-is("Window")');
+await page.click('button:text-is("Window")');
 await panel.waitForSelector('button[title="Stop GIF recording"]');
 await panel.click('button[title="Stop GIF recording"]');
 await panel.waitForSelector(
@@ -125,7 +123,7 @@ const keptPath = await panel.evaluate(() =>
 );
 await panel.click('button[title="Save recording annotation"]');
 await panel.click('button[title="Record a GIF"]');
-await panel.click('button:text-is("Window")');
+await page.click('button:text-is("Window")');
 await panel.waitForSelector('button[title="Stop GIF recording"]');
 await panel.click('button[title="Stop GIF recording"]');
 await panel.waitForSelector('button[aria-label="Delete recording"]');

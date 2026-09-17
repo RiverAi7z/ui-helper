@@ -251,7 +251,17 @@ try {
         }),
       );
     } catch (error) {
-      results.push({ name, selector, error: String(error) });
+      const message = String(error);
+      // Only this known hit-testing limitation is a skip, not every possible
+      // failure involving this selector (which could hide a new regression).
+      const skipped =
+        selector === ".profile-copy" &&
+        message === "Error: No unobstructed point on target";
+      results.push({
+        name,
+        selector,
+        ...(skipped ? { skipped: message } : { error: message }),
+      });
       console.log(JSON.stringify(results.at(-1)));
     }
   }
@@ -260,7 +270,7 @@ try {
   console.log({ resultsPath: path, cases: results.length });
   const failures = results.filter(
     (result) =>
-      result.selector !== ".profile-copy" &&
+      !result.skipped &&
       (result.error ||
         result.moveChanges.length ||
         result.resizeChanges.length ||
@@ -271,6 +281,14 @@ try {
         Math.abs(result.size.dw - 40) > 0.8 ||
         Math.abs(result.size.dh - 20) > 0.8),
   );
+  console.log({
+    passed:
+      results.length -
+      failures.length -
+      results.filter((result) => result.skipped).length,
+    skipped: results.filter((result) => result.skipped).length,
+    failed: failures.length,
+  });
   if (failures.length)
     throw Error(
       `Failed cases: ${failures.map((result) => result.name).join(", ")}`,

@@ -1,0 +1,56 @@
+.ui-recording-box {
+  position: fixed;
+  border: 2px solid var(--ui-recording-red);
+  background: rgb(255 59 48 / 5%);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 55%) inset,
+    0 0 22px rgb(255 59 48 / 18%);
+  pointer-events: none;
+  z-index: 72;
+}
+.ui-recording-drag {
+  border-style: dashed;
+}
+.ui-recording-tag {
+  position: fixed;
+  min-height: 24px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  color: white;
+  background: var(--ui-recording-red);
+  box-shadow: 0 3px 12px rgb(0 0 0 / 28%);
+  pointer-events: none;
+  z-index: 73;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.03em;
+}
+.ui-recording-window-tag {
+  top: 18px;
+  right: 18px;
+}
+.ui-recording-tag-button {
+  pointer-events: auto;
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.05s ease;
+}
+.ui-recording-tag-button:hover {
+  filter: brightness(1.12);
+  box-shadow:
+    0 5px 16px rgb(0 0 0 / 35%),
+    0 0 0 2px rgb(255 255 255 / 35%);
+}
+.ui-recording-tag-button:active {
+  transform: scale(0.97);
+}
+.ui-recording-tag-button:focus-visible,
+.ui-recording-tag-button.active {
+  outline: none;
+  box-shadow:
+    0 5px 16px rgb(0 0 0 / 35%),
+    0 0 0 2px #ffffff;
+}

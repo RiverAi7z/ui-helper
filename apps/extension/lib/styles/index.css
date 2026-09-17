@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+/* Preserve the original cascade order for both the Shadow DOM and native panel. */
+@import "./base.css";
+@import "./overlays.css";
+@import "./editor.css";
+@import "./recording-options.css";
+@import "./editor-fields.css";
+@import "./recording-markers.css";
+@import "./sidebar.css";

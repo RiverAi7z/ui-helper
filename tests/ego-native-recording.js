@@ -68,13 +68,20 @@ try {
   // Preserve any existing GIF; just close its editor.
   if (await native(() => !!document.querySelector(".ui-editor")))
     await textButton("Cancel");
-  if (!(await native(() => !!document.querySelector(".ui-record-bar"))))
+  if (
+    !(await page.evaluate(
+      () =>
+        !!document
+          .querySelector("ui-helper-root[data-ui-helper-owner]")
+          ?.shadowRoot.querySelector(".ui-record-bar"),
+    ))
+  )
     await button("Record a GIF");
-  await fill('input[aria-label="Recording limit seconds"]', "3");
+  await page.fill('input[aria-label="Recording limit seconds"]', "3");
   const count = await native(
     () => document.querySelector(".ui-count").textContent,
   );
-  await textButton("Window");
+  await page.click('button:text-is("Window")');
   await wait(
     () => !!document.querySelector('button[title="Stop GIF recording"]'),
   );
@@ -114,10 +121,17 @@ try {
     windowRecording,
   );
 
-  if (!(await native(() => !!document.querySelector(".ui-record-bar"))))
+  if (
+    !(await page.evaluate(
+      () =>
+        !!document
+          .querySelector("ui-helper-root[data-ui-helper-owner]")
+          ?.shadowRoot.querySelector(".ui-record-bar"),
+    ))
+  )
     await button("Record a GIF");
-  await fill('input[aria-label="Recording limit seconds"]', "3");
-  await textButton("Area");
+  await page.fill('input[aria-label="Recording limit seconds"]', "3");
+  await page.click('button:text-is("Area")');
   await page.mouse.move(800, 250);
   await page.mouse.down();
   await page.mouse.move(1100, 450, { steps: 8 });

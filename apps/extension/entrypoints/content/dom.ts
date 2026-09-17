@@ -4,43 +4,13 @@ import type {
   TargetSnapshot,
 } from "@ui-helper/shared";
 
-export const STYLE_PROPERTIES = [
-  "display",
-  "position",
-  "left",
-  "top",
-  "right",
-  "bottom",
-  "box-sizing",
-  "min-width",
-  "min-height",
-  "max-width",
-  "max-height",
-  "color",
-  "background-color",
-  "opacity",
-  "font-family",
-  "font-size",
-  "font-weight",
-  "border-radius",
-  "border-color",
-  "border-width",
-  "width",
-  "height",
-  "flex-grow",
-  "flex-shrink",
-  "flex-basis",
-  "padding-top",
-  "padding-right",
-  "padding-bottom",
-  "padding-left",
-  "margin-top",
-  "margin-right",
-  "margin-bottom",
-  "margin-left",
-] as const;
-
-export type StyleProperty = (typeof STYLE_PROPERTIES)[number];
+import { STYLE_PROPERTIES } from "../../lib/style-properties";
+// Preserve existing imports while neutral consumers use the library directly.
+export {
+  STYLE_PROPERTIES,
+  colorToHex,
+  type StyleProperty,
+} from "../../lib/style-properties";
 
 // Blank page space resolves to body/html, not an editable component.
 // Share this guard between hover and click so neither can target the whole page.
@@ -214,10 +184,4 @@ function sanitizedOuterHTML(element: HTMLElement): string {
 
 export function isTextEditable(element: HTMLElement): boolean {
   return element.children.length === 0 && Boolean(element.textContent?.trim());
-}
-
-export function colorToHex(value: string): string {
-  const match = value.match(/rgba?\((\d+)[, ]+(\d+)[, ]+(\d+)/i);
-  if (!match) return /^#[0-9a-f]{6}$/i.test(value) ? value : "#000000";
-  return `#${[match[1], match[2], match[3]].map((part) => Number(part).toString(16).padStart(2, "0")).join("")}`;
 }

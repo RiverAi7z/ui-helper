@@ -1,6 +1,6 @@
-import type { ExtensionRequest } from "@ui-helper/shared";
-import type { PanelCommand } from "../lib/panel-protocol";
+import type { PanelPortMessage } from "../lib/panel-protocol";
 import { connectPage } from "../lib/connect-page";
+import { handleRecordingRequest } from "../lib/background-recording";
 
 export default defineBackground(() => {
   type Panel = {
@@ -82,15 +82,7 @@ export default defineBackground(() => {
     const panel: Panel = { port, windowId: -1, generation: 0, visible: true };
     panels.add(panel);
     port.onMessage.addListener(
-      (message: {
-        type: string;
-        windowId?: number;
-        tabId?: number;
-        id?: string;
-        command?: PanelCommand;
-        result?: unknown;
-        visible?: boolean;
-      }) => {
+      (message: PanelPortMessage) => {
         if (message.type === "PANEL_HELLO" && message.windowId !== undefined) {
           panel.windowId = message.windowId;
           panel.visible = message.visible !== false;
@@ -224,56 +216,7 @@ export default defineBackground(() => {
     }
     if (request.type !== "START_RECORDING" && request.type !== "STOP_RECORDING")
       return false;
-    void (async () => {
-      try {
-        if (request.type === "START_RECORDING") {
-          if (tabId === undefined)
-            throw new Error("No active tab is available for recording");
-          await ensureOffscreenDocument();
-          const streamId = await new Promise<string>((resolve, reject) => {
-            chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (id) => {
-              const error = chrome.runtime.lastError;
-              if (error) reject(new Error(error.message));
-              else resolve(id);
-            });
-          });
-          sendResponse(
-            await chrome.runtime.sendMessage({
-              target: "offscreen",
-              type: "START_CAPTURE",
-              streamId,
-              crop: (
-                request as Extract<
-                  ExtensionRequest,
-                  { type: "START_RECORDING" }
-                >
-              ).crop,
-            }),
-          );
-        } else {
-          sendResponse(
-            await chrome.runtime.sendMessage({
-              target: "offscreen",
-              type: "STOP_CAPTURE",
-            }),
-          );
-        }
-      } catch (error) {
-        sendResponse({
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    })();
+    void handleRecordingRequest(request, tabId).then(sendResponse);
     return true;
   });
 });
-
-async function ensureOffscreenDocument(): Promise<void> {
-  if (await chrome.offscreen.hasDocument()) return;
-  await chrome.offscreen.createDocument({
-    url: "offscreen.html",
-    reasons: [chrome.offscreen.Reason.USER_MEDIA],
-    justification: "Encode the user-requested current-tab recording as a GIF.",
-  });
-}

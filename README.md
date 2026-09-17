@@ -7,7 +7,7 @@ A Chrome/Edge visual feedback extension for local front-end projects. Select DOM
 Until the Chrome Web Store review is complete, install the signed-off GitHub build manually:
 
 1. Open the [latest GitHub release](https://github.com/RiverAi7z/ui-helper/releases/latest).
-2. Download `ui-helper-v0.2.0-chrome.zip` and unzip it.
+2. Download `ui-helper-v0.2.1-chrome.zip` and unzip it.
 3. Open `chrome://extensions` in Chrome or Edge.
 4. Enable **Developer mode**.
 5. Click **Load unpacked** and select the unzipped folder.
@@ -36,7 +36,13 @@ Load `apps/extension/.output/chrome-mv3` from `chrome://extensions` with **Devel
 
 Copying annotations never requires folder access, a local server, a pairing token, or a command-line process.
 
-Only selection outlines, transform handles, and annotation markers are injected into the inspected page. Editing controls, file permission dialogs, and clipboard operations run in the separate extension document. Page viewport units, media queries, and fixed positioning remain browser-managed.
+Selection outlines, transform handles, annotation markers, and floating recording options are injected into the inspected page. Annotation editors, file permission dialogs, and clipboard operations run in the separate extension document. Page viewport units, media queries, and fixed positioning remain browser-managed.
+
+## Maintenance
+
+Behavior-preserving refactors follow the [behavior contract](docs/behavior-contract.md)
+and [runtime boundaries](docs/runtime-boundaries.md). See [test entry points](tests/README.md),
+the [parity matrix](tests/parity-matrix.md), and [refactor validation results](tests/refactor-results.md).
 
 ## Commands
 

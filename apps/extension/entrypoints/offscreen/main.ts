@@ -1,9 +1,9 @@
 import type { RecordingCrop } from "@ui-helper/shared";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
+import { captureGeometry } from "../../lib/capture-geometry";
 
 const FPS = 6;
 const FRAME_DELAY = 1000 / FPS;
-const MAX_EDGE = 960;
 
 let stream: MediaStream | null = null;
 let timer: number | null = null;
@@ -60,50 +60,11 @@ async function startCapture(
   video.srcObject = stream;
   await video.play();
 
-  const viewportWidth = crop?.viewportWidth || video.videoWidth;
-  const viewportHeight = crop?.viewportHeight || video.videoHeight;
-  const sourceScale = Math.min(
-    video.videoWidth / viewportWidth,
-    video.videoHeight / viewportHeight,
-  );
-  const offsetX = Math.max(
-    0,
-    (video.videoWidth - viewportWidth * sourceScale) / 2,
-  );
-  const offsetY = Math.max(
-    0,
-    (video.videoHeight - viewportHeight * sourceScale) / 2,
-  );
-  sourceRect = crop
-    ? {
-        x: Math.max(0, Math.round(offsetX + crop.x * sourceScale)),
-        y: Math.max(0, Math.round(offsetY + crop.y * sourceScale)),
-        width: Math.max(2, Math.round(crop.width * sourceScale)),
-        height: Math.max(2, Math.round(crop.height * sourceScale)),
-      }
-    : { x: 0, y: 0, width: video.videoWidth, height: video.videoHeight };
-  sourceRect.width = Math.min(
-    sourceRect.width,
-    video.videoWidth - sourceRect.x,
-  );
-  sourceRect.height = Math.min(
-    sourceRect.height,
-    video.videoHeight - sourceRect.y,
-  );
-
-  const outputScale = Math.min(
-    1,
-    MAX_EDGE / Math.max(sourceRect.width, sourceRect.height),
-  );
+  const geometry = captureGeometry(video.videoWidth, video.videoHeight, crop);
+  sourceRect = geometry.sourceRect;
   canvas = document.createElement("canvas");
-  canvas.width = Math.max(
-    2,
-    Math.round((sourceRect.width * outputScale) / 2) * 2,
-  );
-  canvas.height = Math.max(
-    2,
-    Math.round((sourceRect.height * outputScale) / 2) * 2,
-  );
+  canvas.width = geometry.width;
+  canvas.height = geometry.height;
   encoder = GIFEncoder();
   frameCount = 0;
   timer = window.setInterval(captureFrame, FRAME_DELAY);

@@ -7,7 +7,7 @@ const assert = (await import("node:assert/strict")).default;
 const session = `feedback-${Date.now()}`;
 await page.goto(`http://127.0.0.1:5186/?session=${session}`);
 await panel.goto(`http://127.0.0.1:5186/sidepanel.html?session=${session}`);
-await panel.click('button:text-is("Inspect elements")');
+await panel.click('button[title="Inspect elements"]');
 const heading = await page.evaluate(() => {
   const r = document.querySelector("h1").getBoundingClientRect();
   // Select the heading container in its right-side padding, not either text run.
@@ -51,7 +51,7 @@ assert.equal(
   0,
 );
 await panel.click('button[title="Record a GIF"]');
-await panel.click('button:text-is("Window")');
+await page.click('button:text-is("Window")');
 await panel.waitForSelector('button[title="Stop GIF recording"]');
 await panel.click('button[title="Stop GIF recording"]');
 await panel.waitForSelector(".ui-recording-editor textarea");

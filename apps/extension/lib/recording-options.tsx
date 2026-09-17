@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AppWindow, GripVertical, Scan, Timer, X } from "lucide-react";
+import { parseRecordingLimit } from "./recording-limit";
 
 /** Page-owned floating recording controls, matching the v0.1.4 layout. */
 export function RecordingOptions(props: {
@@ -29,7 +30,7 @@ export function RecordingOptions(props: {
     return () => window.removeEventListener("resize", resize);
   }, []);
   const commit = () => {
-    const value = Math.min(60, Math.max(1, Number.parseInt(input, 10) || 20));
+    const value = parseRecordingLimit(input);
     setInput(String(value));
     props.onLimit(value);
   };

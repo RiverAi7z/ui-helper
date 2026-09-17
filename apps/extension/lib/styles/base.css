@@ -1,0 +1,47 @@
+:host {
+  all: initial;
+  color-scheme: dark;
+  --ui-accent: #ffffff;
+  --ui-select: #0a84ff;
+  --ui-recording-red: #ff453a;
+  --ui-bg: #0d0e12;
+  --ui-panel: #17181d;
+  --ui-panel-2: #1e2026;
+  --ui-border: rgb(255 255 255 / 9%);
+  --ui-border-strong: rgb(255 255 255 / 14%);
+  --ui-muted: #9aa1ad;
+  --ui-muted-2: #6b7280;
+  --ui-text: #eef0f4;
+  --ui-ring: rgb(10 132 255 / 38%);
+  font-family:
+    Inter,
+    "SF Pro Text",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+::selection {
+  color: #ffffff;
+  background: rgb(10 132 255 / 40%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+button,
+input,
+textarea {
+  font: inherit;
+}
+button {
+  border: 0;
+}
