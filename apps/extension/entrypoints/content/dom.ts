@@ -9,6 +9,13 @@ export const STYLE_PROPERTIES = [
   "position",
   "left",
   "top",
+  "right",
+  "bottom",
+  "box-sizing",
+  "min-width",
+  "min-height",
+  "max-width",
+  "max-height",
   "color",
   "background-color",
   "opacity",
@@ -163,7 +170,7 @@ function nearbyText(element: HTMLElement): string {
 function sanitizedOuterHTML(element: HTMLElement): string {
   const clone = element.cloneNode(true) as HTMLElement;
   clone
-    .querySelectorAll("script, style, noscript")
+    .querySelectorAll("script, style, noscript, [data-ui-helper-placeholder]")
     .forEach((node) => node.remove());
   clone.querySelectorAll("input, textarea, select").forEach((node) => {
     node.removeAttribute("value");

@@ -22,6 +22,15 @@ await page.evaluate(
 );
 await page.waitForFunction(() => document.fonts.status === "loaded");
 console.log(await page.snapshot());
+// Keep the toolbar clear of the editor on shorter browser viewports.
+const toolbar = await page.evaluate(() => {
+  const r = document
+    .querySelector("ui-helper-root")
+    .shadowRoot.querySelector('[aria-label="Move toolbar"]')
+    .getBoundingClientRect();
+  return { x: r.x + 12, y: r.y + 15 };
+});
+await drag(toolbar.x, toolbar.y, 0, 80 - toolbar.y);
 await page.click('button[title="Inspect elements"]');
 await page.click("#theme-button");
 const panel = await page.evaluate(() => {
@@ -47,9 +56,11 @@ async function measure() {
     };
     return {
       target: rect(target),
-      sibling: rect(target.previousElementSibling),
+      sibling: rect(document.querySelector("#pulse-button")),
       parent: rect(target.parentElement),
-      siblingStyle: target.previousElementSibling.getAttribute("style"),
+      siblingStyle: document
+        .querySelector("#pulse-button")
+        .getAttribute("style"),
       dark: document.body.classList.contains("dark"),
     };
   });

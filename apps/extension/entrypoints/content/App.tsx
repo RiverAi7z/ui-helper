@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import { flushSync } from "react-dom";
+import { clearResizeSlot, isolateResizeLayout } from "./resize-layout";
 import type {
   FeedbackAnnotation,
   FeedbackSession,
@@ -67,6 +68,7 @@ interface LocalAnnotation extends FeedbackAnnotation {
   originalText?: string;
   text?: string;
   saved: boolean;
+  layoutIsolated?: boolean;
 }
 
 interface RecordingAsset {
@@ -140,6 +142,7 @@ export function App({
   const editBaselineRef = useRef<{
     id: string;
     styles: LocalAnnotation["styles"];
+    layoutIsolated?: boolean;
     text?: string;
     comment: string;
   } | null>(null);
@@ -192,10 +195,6 @@ export function App({
     let frame = 0;
     const onPointerMove = (event: PointerEvent) => {
       pointerRef.current = { x: event.clientX, y: event.clientY };
-      if (recording) {
-        setHovered(null);
-        return;
-      }
       if ((mode === "region" || mode === "record-area") && regionStart) {
         setRegionCurrent({ x: event.clientX, y: event.clientY });
         return;
@@ -214,7 +213,6 @@ export function App({
 
     const onClick = (event: MouseEvent) => {
       if (
-        recording ||
         mode !== "inspect" ||
         selectionLockRef.current ||
         event.composedPath().includes(host)
@@ -244,8 +242,9 @@ export function App({
       if (!existing) {
         setAnnotations((items) => [...items, annotation]);
       } else if (existing.element !== target) {
+        if (existing.element) clearResizeSlot(existing.element);
         if (previewEnabled) {
-          applyStyles(target, existing.styles);
+          applyStyles(target, existing.styles, existing.layoutIsolated);
           if (existing.text !== undefined && isTextEditable(target))
             target.textContent = existing.text;
         }
@@ -264,8 +263,8 @@ export function App({
 
     const onPointerDown = (event: PointerEvent) => {
       if (
-        recording ||
         (mode !== "region" && mode !== "record-area") ||
+        selectionLockRef.current ||
         event.composedPath().includes(host) ||
         event.button !== 0
       )
@@ -278,7 +277,6 @@ export function App({
 
     const onPointerUp = (event: PointerEvent) => {
       if (
-        recording ||
         (mode !== "region" && mode !== "record-area") ||
         selectionLockRef.current ||
         !regionStart ||
@@ -358,6 +356,7 @@ export function App({
         let changed = false;
         const next = items.map((item) => {
           if (!item.target || item.element?.isConnected) return item;
+          if (item.element) clearResizeSlot(item.element);
           let replacement: HTMLElement | null = null;
           try {
             replacement = document.querySelector(item.target.selector);
@@ -365,7 +364,7 @@ export function App({
             replacement = null;
           }
           if (!(replacement instanceof HTMLElement)) return item;
-          applyStyles(replacement, item.styles);
+          applyStyles(replacement, item.styles, item.layoutIsolated);
           if (item.text !== undefined && isTextEditable(replacement))
             replacement.textContent = item.text;
           changed = true;
@@ -412,6 +411,7 @@ export function App({
       editBaselineRef.current = {
         id: annotation.id,
         styles: { ...annotation.styles },
+        layoutIsolated: annotation.layoutIsolated,
         text: annotation.text,
         comment: annotation.comment,
       };
@@ -523,7 +523,11 @@ export function App({
         if (!annotation.element) continue;
         if (enabled) restoreAnnotation(annotation);
         else {
-          applyStyles(annotation.element, annotation.styles);
+          applyStyles(
+            annotation.element,
+            annotation.styles,
+            annotation.layoutIsolated,
+          );
           if (
             annotation.text !== undefined &&
             isTextEditable(annotation.element)
@@ -547,12 +551,17 @@ export function App({
       if (baseline?.id === selected.id) {
         restoreAnnotation(selected);
         if (selected.element && previewEnabled) {
-          applyStyles(selected.element, baseline.styles);
+          applyStyles(
+            selected.element,
+            baseline.styles,
+            baseline.layoutIsolated,
+          );
           if (baseline.text !== undefined && isTextEditable(selected.element))
             selected.element.textContent = baseline.text;
         }
         updateAnnotation(selected.id, {
           styles: baseline.styles,
+          layoutIsolated: baseline.layoutIsolated,
           text: baseline.text,
           comment: baseline.comment,
         });
@@ -623,11 +632,10 @@ export function App({
       return;
     }
     setHovered(null);
-    setSelectedId(null);
     setSelectedRecordingId(null);
     recordingCommentBaselineRef.current = null;
-    selectionLockRef.current = true;
-    setMode("idle");
+    selectionLockRef.current = selectedIdRef.current !== null;
+    setMode((current) => (current === "record-area" ? "idle" : current));
     recordingScopeRef.current = scope;
     recordingRegionRef.current = crop;
     setActiveRecordingScope(scope);
@@ -638,7 +646,7 @@ export function App({
 
   const stopRecording = useCallback(async () => {
     if (!recording) return;
-    selectionLockRef.current = false;
+    selectionLockRef.current = selectedIdRef.current !== null;
     const completedScope = recordingScopeRef.current;
     const completedRegion = recordingRegionRef.current;
     setRecording(false);
@@ -683,14 +691,17 @@ export function App({
       region: completedRegion,
     };
     setRecordings((items) => [...items, recordingAsset]);
-    recordingCommentBaselineRef.current = {
-      id: recordingAsset.id,
-      comment: "",
-    };
-    setEditorOrigin(pointerRef.current);
-    selectionLockRef.current = true;
-    setSelectedId(null);
-    setSelectedRecordingId(recordingAsset.id);
+    // Finishing a recording must not dismiss an element/region draft, including
+    // one opened while the GIF was being encoded. Its tag can open the GIF later.
+    if (!selectedIdRef.current) {
+      recordingCommentBaselineRef.current = {
+        id: recordingAsset.id,
+        comment: "",
+      };
+      setEditorOrigin(pointerRef.current);
+      selectionLockRef.current = true;
+      setSelectedRecordingId(recordingAsset.id);
+    }
     setNotice(`GIF saved to ${relativePath}`);
   }, [recording]);
 
@@ -761,66 +772,78 @@ export function App({
         </>
       )}
 
-      {!recording &&
-        annotations.map((annotation) => {
-          const storedRect = annotation.region ?? annotation.target?.rect;
-          const rect = annotation.element?.isConnected
-            ? rectSnapshot(annotation.element.getBoundingClientRect())
-            : storedRect
-              ? {
-                  ...storedRect,
-                  x: storedRect.pageX - window.scrollX,
-                  y: storedRect.pageY - window.scrollY,
-                }
-              : undefined;
-          if (!rect) return null;
-          return (
-            <React.Fragment key={annotation.id}>
-              <Box
-                rect={rect}
-                className={
-                  annotation.kind === "region"
-                    ? "ui-region-box"
-                    : "ui-selected-box"
-                }
-              />
-              {annotation.id === selectedId &&
-                annotation.element?.isConnected &&
-                previewEnabled && (
-                  <ElementTransform
-                    rect={rect}
-                    element={annotation.element}
-                    onChange={(styles) => {
-                      applyStyles(annotation.element!, styles);
-                      updateAnnotation(annotation.id, {
-                        styles: { ...annotation.styles, ...styles },
-                      });
-                    }}
-                  />
-                )}
-              <button
-                className="ui-marker"
-                style={{
-                  left: rect.x + rect.width - 12,
-                  top:
-                    rect.y -
-                    (annotation.id === selectedId && annotation.element
-                      ? 32
-                      : 12),
-                }}
-                onClick={(event) => {
-                  recordingCommentBaselineRef.current = null;
-                  selectionLockRef.current = true;
-                  setEditorOrigin({ x: event.clientX, y: event.clientY });
-                  setSelectedRecordingId(null);
-                  setSelectedId(annotation.id);
-                }}
-              >
-                {annotation.index}
-              </button>
-            </React.Fragment>
-          );
-        })}
+      {annotations.map((annotation) => {
+        const storedRect = annotation.region ?? annotation.target?.rect;
+        const rect = annotation.element?.isConnected
+          ? rectSnapshot(annotation.element.getBoundingClientRect())
+          : storedRect
+            ? {
+                ...storedRect,
+                x: storedRect.pageX - window.scrollX,
+                y: storedRect.pageY - window.scrollY,
+              }
+            : undefined;
+        if (!rect) return null;
+        return (
+          <React.Fragment key={annotation.id}>
+            <Box
+              rect={rect}
+              className={
+                annotation.kind === "region"
+                  ? "ui-region-box"
+                  : "ui-selected-box"
+              }
+            />
+            {annotation.id === selectedId &&
+              annotation.element?.isConnected &&
+              previewEnabled && (
+                <ElementTransform
+                  rect={rect}
+                  element={annotation.element}
+                  styles={annotation.styles}
+                  layoutIsolated={annotation.layoutIsolated}
+                  onChange={(styles, layoutIsolated) => {
+                    applyStyles(annotation.element!, styles, layoutIsolated);
+                    updateAnnotation(annotation.id, {
+                      styles: { ...annotation.styles, ...styles },
+                      layoutIsolated,
+                    });
+                  }}
+                  onRestore={(styles, layoutIsolated) => {
+                    restoreElementState(annotation);
+                    applyStyles(annotation.element!, styles, layoutIsolated);
+                    if (
+                      annotation.text !== undefined &&
+                      isTextEditable(annotation.element!)
+                    )
+                      annotation.element!.textContent = annotation.text;
+                    updateAnnotation(annotation.id, { styles, layoutIsolated });
+                  }}
+                />
+              )}
+            <button
+              className="ui-marker"
+              style={{
+                left: rect.x + rect.width - 12,
+                top:
+                  rect.y -
+                  (annotation.id === selectedId && annotation.element
+                    ? 32
+                    : 12),
+              }}
+              onClick={(event) => {
+                recordingCommentBaselineRef.current = null;
+                selectionLockRef.current = true;
+                setEditorOrigin({ x: event.clientX, y: event.clientY });
+                setSelectedRecordingId(null);
+                setSelectedId(annotation.id);
+              }}
+            >
+              {annotation.index}
+            </button>
+          </React.Fragment>
+        );
+      })}
 
       {!recording &&
         recordings.map((recordingAsset, index) => {
@@ -1020,7 +1043,7 @@ export function App({
         />
       )}
 
-      {!recording && selected && !selectedRecording && (
+      {selected && !selectedRecording && (
         <Editor
           key={selected.id}
           annotation={selected}
@@ -1180,7 +1203,6 @@ function Toolbar(props: {
       <Button
         title="Inspect elements"
         size="icon"
-        disabled={props.recording}
         variant={props.mode === "inspect" ? "default" : "ghost"}
         onClick={() =>
           props.setMode(props.mode === "inspect" ? "idle" : "inspect")
@@ -1191,7 +1213,6 @@ function Toolbar(props: {
       <Button
         title="Annotate a region"
         size="icon"
-        disabled={props.recording}
         variant={props.mode === "region" ? "default" : "ghost"}
         onClick={() =>
           props.setMode(props.mode === "region" ? "idle" : "region")
@@ -1207,7 +1228,6 @@ function Toolbar(props: {
             : "Show style-change preview"
         }
         size="icon"
-        disabled={props.recording}
         variant="ghost"
         onClick={props.onTogglePreview}
       >
@@ -1751,11 +1771,17 @@ type TransformHandle =
 function ElementTransform({
   rect,
   element,
+  styles: savedStyles,
+  layoutIsolated = false,
   onChange,
+  onRestore,
 }: {
   rect: RectSnapshot;
   element: HTMLElement;
-  onChange: (styles: LocalAnnotation["styles"]) => void;
+  styles: LocalAnnotation["styles"];
+  layoutIsolated?: boolean;
+  onChange: (styles: LocalAnnotation["styles"], isolated: boolean) => void;
+  onRestore: (styles: LocalAnnotation["styles"], isolated: boolean) => void;
 }) {
   const gesture = useRef<{
     pointerId: number;
@@ -1769,16 +1795,9 @@ function ElementTransform({
     scaleX: number;
     scaleY: number;
     position: string;
-    display: string;
-    preserveFlexSpace: boolean;
-    marginX: "margin-left" | "margin-right";
-    marginY: "margin-top" | "margin-bottom";
-    marginXValue: number;
-    marginYValue: number;
-    minWidth: number;
-    minHeight: number;
-    maxWidth: number;
-    maxHeight: number;
+    isolated: boolean;
+    originalIsolated: boolean;
+    baseStyles: LocalAnnotation["styles"];
     original: LocalAnnotation["styles"];
   } | null>(null);
 
@@ -1789,6 +1808,7 @@ function ElementTransform({
     if (event.button !== 0 || gesture.current) return;
     event.preventDefault();
     event.stopPropagation();
+    const baseStyles = handle === "move" ? {} : isolateResizeLayout(element);
     const computed = getComputedStyle(element);
     const bounds = element.getBoundingClientRect();
     const number = (property: string) =>
@@ -1796,25 +1816,6 @@ function ElementTransform({
     const borderBox = computed.boxSizing === "border-box";
     const width = parseFloat(computed.width);
     const height = parseFloat(computed.height);
-    const parent =
-      element.parentElement && getComputedStyle(element.parentElement);
-    const preserveFlexSpace =
-      !!parent &&
-      /^(inline-)?flex$/.test(parent.display) &&
-      computed.position !== "absolute" &&
-      computed.position !== "fixed";
-    // Compensate on the trailing sides so the flex item's outer footprint stays
-    // unchanged. This avoids stretching siblings, redistribution and wrapping.
-    const reverseX =
-      (parent?.direction === "rtl") !==
-      (parent?.flexDirection === "row-reverse");
-    const marginX = reverseX ? "margin-left" : "margin-right";
-    const marginY =
-      parent?.flexDirection === "column-reverse"
-        ? "margin-top"
-        : "margin-bottom";
-    const limit = (value: string, fallback: number) =>
-      value.endsWith("px") ? parseFloat(value) : fallback;
     gesture.current = {
       pointerId: event.pointerId,
       x: event.clientX,
@@ -1840,35 +1841,31 @@ function ElementTransform({
               number("border-bottom-width")),
       left: computed.position === "static" ? 0 : number("left"),
       top: computed.position === "static" ? 0 : number("top"),
-      scaleX: bounds.width / element.offsetWidth || 1,
-      scaleY: bounds.height / element.offsetHeight || 1,
+      scaleX: Number.isFinite(width)
+        ? bounds.width /
+            (width +
+              (borderBox
+                ? 0
+                : number("padding-left") +
+                  number("padding-right") +
+                  number("border-left-width") +
+                  number("border-right-width"))) || 1
+        : 1,
+      scaleY: Number.isFinite(height)
+        ? bounds.height /
+            (height +
+              (borderBox
+                ? 0
+                : number("padding-top") +
+                  number("padding-bottom") +
+                  number("border-top-width") +
+                  number("border-bottom-width"))) || 1
+        : 1,
       position: computed.position === "static" ? "relative" : computed.position,
-      display:
-        computed.display === "inline" ? "inline-block" : computed.display,
-      preserveFlexSpace,
-      marginX,
-      marginY,
-      marginXValue: number(marginX),
-      marginYValue: number(marginY),
-      minWidth: limit(computed.minWidth, 1),
-      minHeight: limit(computed.minHeight, 1),
-      maxWidth: limit(computed.maxWidth, Infinity),
-      maxHeight: limit(computed.maxHeight, Infinity),
-      original: Object.fromEntries(
-        [
-          "position",
-          "left",
-          "top",
-          "width",
-          "height",
-          "display",
-          marginX,
-          marginY,
-          "flex-grow",
-          "flex-shrink",
-          "flex-basis",
-        ].map((key) => [key, computed.getPropertyValue(key)]),
-      ),
+      isolated: layoutIsolated || Object.keys(baseStyles).length > 0,
+      originalIsolated: layoutIsolated,
+      baseStyles,
+      original: { ...savedStyles },
     };
     event.currentTarget
       .closest<HTMLElement>(".ui-element-transform")!
@@ -1882,74 +1879,35 @@ function ElementTransform({
     const dx = (event.clientX - current.x) / current.scaleX;
     const dy = (event.clientY - current.y) / current.scaleY;
     const { handle } = current;
-    const styles: LocalAnnotation["styles"] = { position: current.position };
+    const styles: LocalAnnotation["styles"] = {
+      ...current.baseStyles,
+      position: current.position,
+    };
     const px = (value: number) => `${Math.round(value * 100) / 100}px`;
     if (handle === "move") {
       styles.left = px(current.left + dx);
       styles.top = px(current.top + dy);
     } else {
-      styles.display = current.display;
-      if (current.preserveFlexSpace) {
-        styles.width = px(current.width);
-        styles.height = px(current.height);
-        styles["flex-grow"] = "0";
-        styles["flex-shrink"] = "0";
-        styles["flex-basis"] = "auto";
-      }
       if (handle.includes("e") || handle.includes("w")) {
         const width = Math.max(
           1,
-          current.minWidth,
-          Math.min(
-            current.maxWidth,
-            current.width + (handle.includes("w") ? -dx : dx),
-          ),
+          current.width + (handle.includes("w") ? -dx : dx),
         );
         styles.width = px(width);
-        if (current.preserveFlexSpace)
-          styles[current.marginX] = px(
-            current.marginXValue + current.width - width,
-          );
-        if (
-          handle.includes("w") ||
-          (current.preserveFlexSpace && current.marginX === "margin-left")
-        )
-          styles.left = px(
-            current.left +
-              (current.preserveFlexSpace && current.marginX === "margin-left"
-                ? width - current.width
-                : 0) +
-              (handle.includes("w") ? current.width - width : 0),
-          );
+        if (handle.includes("w"))
+          styles.left = px(current.left + current.width - width);
       }
       if (handle.includes("n") || handle.includes("s")) {
         const height = Math.max(
           1,
-          current.minHeight,
-          Math.min(
-            current.maxHeight,
-            current.height + (handle.includes("n") ? -dy : dy),
-          ),
+          current.height + (handle.includes("n") ? -dy : dy),
         );
         styles.height = px(height);
-        if (current.preserveFlexSpace)
-          styles[current.marginY] = px(
-            current.marginYValue + current.height - height,
-          );
-        if (
-          handle.includes("n") ||
-          (current.preserveFlexSpace && current.marginY === "margin-top")
-        )
-          styles.top = px(
-            current.top +
-              (current.preserveFlexSpace && current.marginY === "margin-top"
-                ? height - current.height
-                : 0) +
-              (handle.includes("n") ? current.height - height : 0),
-          );
+        if (handle.includes("n"))
+          styles.top = px(current.top + current.height - height);
       }
     }
-    onChange(styles);
+    onChange(styles, current.isolated);
   };
   return (
     <div
@@ -1970,10 +1928,13 @@ function ElementTransform({
         event.currentTarget.releasePointerCapture(event.pointerId);
       }}
       onPointerCancel={() => {
-        if (gesture.current) onChange(gesture.current.original);
+        if (gesture.current)
+          onRestore(gesture.current.original, gesture.current.originalIsolated);
         gesture.current = null;
       }}
       onLostPointerCapture={() => {
+        if (gesture.current)
+          onRestore(gesture.current.original, gesture.current.originalIsolated);
         gesture.current = null;
       }}
       onClick={(event) => {
@@ -2045,7 +2006,6 @@ function createElementAnnotation(
       value: element.style.getPropertyValue(property),
       priority: element.style.getPropertyPriority(property),
     };
-    styles[property] = snapshot.computedStyles[property];
   }
   const editable = isTextEditable(element);
   return {
@@ -2113,6 +2073,7 @@ function valueOf(annotation: LocalAnnotation, property: StyleProperty): string {
 
 function restoreElementState(annotation: LocalAnnotation): void {
   if (!annotation.element) return;
+  clearResizeSlot(annotation.element);
   for (const property of STYLE_PROPERTIES) {
     const original = annotation.originalInline[property];
     if (original?.value)
@@ -2133,7 +2094,9 @@ function restoreElementState(annotation: LocalAnnotation): void {
 function applyStyles(
   element: HTMLElement,
   styles: LocalAnnotation["styles"],
+  layoutIsolated = false,
 ): void {
+  if (layoutIsolated) isolateResizeLayout(element);
   Object.entries(styles).forEach(([property, value]) => {
     if (value !== undefined)
       element.style.setProperty(property, value, "important");
@@ -2146,6 +2109,14 @@ function styleDeltas(annotation: LocalAnnotation): StyleDelta[] {
     const after = annotation.styles[property] ?? before;
     return before.trim() === after.trim() ? [] : [{ property, before, after }];
   });
+  if (annotation.layoutIsolated) {
+    deltas.unshift({
+      property: "layout",
+      before: "normal flow",
+      after:
+        "Preserve the original layout footprint while resizing; the editor uses an inert layout placeholder.",
+    });
+  }
   if (
     annotation.originalText !== undefined &&
     annotation.text !== undefined &&
