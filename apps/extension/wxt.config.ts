@@ -7,7 +7,7 @@ export default defineConfig({
     name: "UI Helper",
     description:
       "Select, preview, annotate, and record UI feedback for coding agents.",
-    version: "0.1.4",
+    version: "0.2.0",
     icons: {
       16: "icons/16.png",
       32: "icons/32.png",
