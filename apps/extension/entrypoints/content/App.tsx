@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { clearResizeSlot, isolateResizeLayout } from "./resize-layout";
 import type {
@@ -13,42 +7,14 @@ import type {
   RectSnapshot,
   StyleDelta,
 } from "@ui-helper/shared";
-import {
-  AppWindow,
-  Check,
-  Copy,
-  Eye,
-  EyeOff,
-  GripVertical,
-  Link2,
-  MousePointer2,
-  Scan,
-  SquareDashedMousePointer,
-  StopCircle,
-  Timer,
-  Trash2,
-  Video,
-  X,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import type {
+  Mode,
+  RecordingAsset,
+  PanelState,
+  PanelCommand,
+} from "../../lib/panel-protocol";
 import {
   STYLE_PROPERTIES,
-  colorToHex,
   isTextEditable,
   pageSnapshot,
   rectSnapshot,
@@ -71,37 +37,12 @@ interface LocalAnnotation extends FeedbackAnnotation {
   layoutIsolated?: boolean;
 }
 
-interface RecordingAsset {
-  id: string;
-  relativePath: string;
-  width: number;
-  height: number;
-  frames: number;
-  comment: string;
-  scope: "window" | "area";
-  region?: RectSnapshot;
-}
-
-type Mode = "idle" | "inspect" | "region" | "record-area";
 type Point = { x: number; y: number };
-type DirectoryPickerWindow = Window & {
-  showDirectoryPicker(options?: {
-    id?: string;
-    mode?: "read" | "readwrite";
-  }): Promise<FileSystemDirectoryHandle>;
-};
 
-export function App({
-  host,
-  portalContainer,
-}: {
-  host: HTMLElement;
-  portalContainer: HTMLElement;
-}) {
-  const [active, setActive] = useState(true);
+export function App({ host }: { host: HTMLElement }) {
+  const [active, setActive] = useState(false);
   const [mode, setMode] = useState<Mode>("idle");
   const [hovered, setHovered] = useState<HTMLElement | null>(null);
-  const [editorOrigin, setEditorOrigin] = useState<Point>({ x: 0, y: 0 });
   const [annotations, setAnnotations] = useState<LocalAnnotation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [regionStart, setRegionStart] = useState<{
@@ -119,26 +60,20 @@ export function App({
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingLimit, setRecordingLimit] = useState(20);
-  const [recordingLimitInput, setRecordingLimitInput] = useState("20");
   const [activeRecordingScope, setActiveRecordingScope] = useState<
     "window" | "area"
   >("window");
   const [activeRecordingRegion, setActiveRecordingRegion] =
     useState<RectSnapshot>();
   const [previewEnabled, setPreviewEnabled] = useState(true);
-  const [recordBarOpen, setRecordBarOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [, setLayoutTick] = useState(0);
-  const recordBarPanel = useMovablePanel();
   const annotationsRef = useRef(annotations);
-  const pointerRef = useRef<Point>({ x: 0, y: 0 });
-  const projectDirectoryRef = useRef<FileSystemDirectoryHandle | null>(null);
   const selectedIdRef = useRef(selectedId);
   const selectionLockRef = useRef(false);
   const recordingScopeRef = useRef<"window" | "area">("window");
   const recordingRegionRef = useRef<RectSnapshot | undefined>(undefined);
   const recordingLimitRef = useRef(20);
-  const recordingLimitInputRef = useRef("20");
   const editBaselineRef = useRef<{
     id: string;
     styles: LocalAnnotation["styles"];
@@ -152,14 +87,6 @@ export function App({
   } | null>(null);
   annotationsRef.current = annotations;
   selectedIdRef.current = selectedId;
-
-  useEffect(() => {
-    const listener = (message: { type?: string }) => {
-      if (message.type === "TOGGLE_UI") setActive((value) => !value);
-    };
-    chrome.runtime.onMessage.addListener(listener);
-    return () => chrome.runtime.onMessage.removeListener(listener);
-  }, []);
 
   useEffect(() => {
     if (!notice) return;
@@ -194,7 +121,6 @@ export function App({
 
     let frame = 0;
     const onPointerMove = (event: PointerEvent) => {
-      pointerRef.current = { x: event.clientX, y: event.clientY };
       if ((mode === "region" || mode === "record-area") && regionStart) {
         setRegionCurrent({ x: event.clientX, y: event.clientY });
         return;
@@ -256,7 +182,6 @@ export function App({
       }
       recordingCommentBaselineRef.current = null;
       setSelectedRecordingId(null);
-      setEditorOrigin({ x: event.clientX, y: event.clientY });
       setSelectedId(annotation.id);
       setHovered(null);
     };
@@ -304,7 +229,6 @@ export function App({
         annotationsRef.current.length + 1,
       );
       setAnnotations((items) => [...items, annotation]);
-      setEditorOrigin({ x: event.clientX, y: event.clientY });
       setSelectedId(annotation.id);
     };
 
@@ -322,7 +246,6 @@ export function App({
       setRecording(false);
       setRecordingSeconds(0);
       setActiveRecordingRegion(undefined);
-      setRecordBarOpen(false);
       setPreviewEnabled(true);
       editBaselineRef.current = null;
       recordingCommentBaselineRef.current = null;
@@ -434,7 +357,6 @@ export function App({
     recordingAsset: RecordingAsset,
     origin: Point,
   ) => {
-    setEditorOrigin(origin);
     recordingCommentBaselineRef.current = {
       id: recordingAsset.id,
       comment: recordingAsset.comment,
@@ -459,6 +381,17 @@ export function App({
     recordingCommentBaselineRef.current = null;
     selectionLockRef.current = false;
     setSelectedRecordingId(null);
+  };
+
+  const deleteRecording = (id: string) => {
+    if (recording || selectedRecording?.id !== id)
+      throw new Error("Select the saved recording to delete it.");
+    // Remove only this session's reference; never silently erase a saved file.
+    setRecordings((items) => items.filter((item) => item.id !== id));
+    recordingCommentBaselineRef.current = null;
+    selectionLockRef.current = false;
+    setSelectedRecordingId(null);
+    setNotice("Recording removed from feedback. Local GIF kept.");
   };
 
   const saveRecordingComment = () => {
@@ -592,28 +525,6 @@ export function App({
     const scope = crop ? "area" : "window";
     setNotice("");
     if (recording) return;
-    try {
-      if (!projectDirectoryRef.current) {
-        const pickerWindow = window as unknown as DirectoryPickerWindow;
-        if (!pickerWindow.showDirectoryPicker)
-          throw new Error(
-            "This page cannot open Chromium's project folder permission dialog",
-          );
-        projectDirectoryRef.current = await pickerWindow.showDirectoryPicker({
-          id: "ui-helper-project",
-          mode: "readwrite",
-        });
-      }
-    } catch (error) {
-      selectionLockRef.current = false;
-      setActiveRecordingRegion(undefined);
-      if (error instanceof DOMException && error.name === "AbortError") {
-        setNotice("Recording cancelled");
-        return;
-      }
-      setNotice(error instanceof Error ? error.message : String(error));
-      return;
-    }
     const response = await chrome.runtime.sendMessage({
       type: "START_RECORDING",
       crop: {
@@ -663,23 +574,19 @@ export function App({
       .toISOString()
       .replace(/[-:.TZ]/g, "")
       .slice(0, 14)}-${crypto.randomUUID().slice(0, 6)}.gif`;
-    const directory = projectDirectoryRef.current;
-    if (!directory) {
-      setNotice("Project folder permission was lost");
-      return;
-    }
-    let relativePath: string;
-    try {
-      relativePath = await saveGifToDirectory(
-        directory,
-        response.dataUrl,
-        filename,
+    const saved = await chrome.runtime.sendMessage({
+      type: "PANEL_SAVE_GIF",
+      dataUrl: response.dataUrl,
+      filename,
+    });
+    if (!saved?.ok) {
+      setNotice(
+        saved?.error ??
+          "Unable to save GIF. Keep the sidebar open while recording.",
       );
-    } catch (error) {
-      projectDirectoryRef.current = null;
-      setNotice(error instanceof Error ? error.message : String(error));
       return;
     }
+    const relativePath = saved.relativePath as string;
     const recordingAsset: RecordingAsset = {
       id: crypto.randomUUID(),
       relativePath,
@@ -698,18 +605,16 @@ export function App({
         id: recordingAsset.id,
         comment: "",
       };
-      setEditorOrigin(pointerRef.current);
       selectionLockRef.current = true;
       setSelectedRecordingId(recordingAsset.id);
     }
     setNotice(`GIF saved to ${relativePath}`);
   }, [recording]);
 
-  const exportForAi = async () => {
+  const exportForAi = () => {
     const savedAnnotations = annotations.filter((item) => item.saved);
     if (!savedAnnotations.length && !recordings.length) {
-      setNotice("Add an annotation or recording first");
-      return;
+      throw new Error("Add an annotation or recording first");
     }
     const portableAnnotations: FeedbackAnnotation[] = savedAnnotations.map(
       (annotation) => ({
@@ -740,26 +645,186 @@ export function App({
       })),
       createdAt: new Date().toISOString(),
     };
-    try {
-      await writeClipboard(buildMarkdown(session, recordings));
-      for (const annotation of annotationsRef.current)
-        restoreAnnotation(annotation);
-      setAnnotations([]);
-      setRecordings([]);
-      setSelectedId(null);
-      setSelectedRecordingId(null);
-      recordingCommentBaselineRef.current = null;
-      setHovered(null);
-      setRegionStart(null);
-      setRegionCurrent(null);
-      setMode("idle");
-      selectionLockRef.current = false;
-      setPreviewEnabled(true);
-      setNotice("Copied");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : String(error));
-    }
+    return buildMarkdown(session, recordings);
   };
+
+  const completeExport = () => {
+    for (const annotation of annotationsRef.current)
+      restoreAnnotation(annotation);
+    setAnnotations([]);
+    setRecordings([]);
+    setSelectedId(null);
+    setSelectedRecordingId(null);
+    editBaselineRef.current = null;
+    recordingCommentBaselineRef.current = null;
+    setHovered(null);
+    setRegionStart(null);
+    setRegionCurrent(null);
+    setMode("idle");
+    selectionLockRef.current = false;
+    setPreviewEnabled(true);
+    setNotice("Copied");
+  };
+
+  // The page owns DOM references and edits; the native panel receives only JSON.
+  const panelState: PanelState = {
+    mode,
+    count: annotations.filter((item) => item.saved).length,
+    recordings,
+    selected: selected
+      ? {
+          id: selected.id,
+          index: selected.index,
+          kind: selected.kind,
+          comment: selected.comment,
+          target: selected.target,
+          region: selected.region,
+          styleDeltas: selected.styleDeltas,
+          artifactPaths: selected.artifactPaths,
+          styles: selected.styles,
+          text: selected.text,
+          saved: selected.saved,
+          textEditable: !!selected.element && isTextEditable(selected.element),
+        }
+      : null,
+    selectedRecordingId,
+    recording,
+    recordingSeconds,
+    recordingLimit,
+    previewEnabled,
+    notice,
+  };
+  const panelStateRef = useRef(panelState);
+  panelStateRef.current = panelState;
+  const handleCommandRef = useRef<
+    (command: PanelCommand) => Promise<{ text?: string }>
+  >(async () => ({}));
+  handleCommandRef.current = async (command) => {
+    // Reject stale edits after switching the selection or navigating between tabs.
+    if (
+      "id" in command &&
+      command.id !== selectedId &&
+      command.id !== selectedRecordingId
+    )
+      throw new Error("The selection changed. Select the element again.");
+    switch (command.type) {
+      case "mode":
+        setMode(command.mode);
+        if (command.mode === "record-area")
+          setNotice("Drag a rectangle around the area to record");
+        break;
+      case "preview":
+        togglePreview();
+        break;
+      case "comment":
+        if (selected) updateAnnotation(selected.id, { comment: command.value });
+        break;
+      case "style":
+        if (selected && STYLE_PROPERTIES.includes(command.property))
+          updateStyle(selected, command.property, command.value);
+        break;
+      case "text":
+        if (selected) updateText(selected, command.value);
+        break;
+      case "save":
+        if (selected) saveAnnotation(selected);
+        break;
+      case "cancel":
+        cancelEditor();
+        break;
+      case "delete":
+        if (selected) deleteAnnotation(selected);
+        break;
+      case "recording-comment":
+        updateRecordingComment(command.id, command.value);
+        break;
+      case "recording-save":
+        saveRecordingComment();
+        break;
+      case "recording-cancel":
+        cancelRecordingEditor();
+        break;
+      case "recording-delete":
+        deleteRecording(command.id);
+        break;
+      case "recording-limit": {
+        if (recording) break;
+        const limit = Math.min(
+          60,
+          Math.max(1, Math.round(command.value) || 20),
+        );
+        recordingLimitRef.current = limit;
+        setRecordingLimit(limit);
+        break;
+      }
+      case "record-window":
+        await startRecording();
+        break;
+      case "record-stop":
+        await stopRecording();
+        break;
+      case "export":
+        return { text: exportForAi() };
+      case "export-done":
+        completeExport();
+        break;
+      case "dismiss-notice":
+        setNotice("");
+        break;
+    }
+    return {};
+  };
+  useEffect(() => {
+    const listener = (
+      message: { type: string; active?: boolean; command?: PanelCommand },
+      _sender: chrome.runtime.MessageSender,
+      respond: (value: unknown) => void,
+    ) => {
+      if (message.type === "PANEL_ATTACH") {
+        setActive(true);
+        respond({ ok: true, state: panelStateRef.current });
+      } else if (message.type === "PANEL_VISIBILITY") {
+        setActive(!!message.active);
+        if (!message.active) {
+          setMode("idle");
+          setHovered(null);
+        }
+        respond({ ok: true });
+      } else if (message.type === "PANEL_COMMAND" && message.command) {
+        handleCommandRef.current(message.command).then(
+          (result) => respond({ ok: true, ...result }),
+          (error) =>
+            respond({
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+            }),
+        );
+        return true;
+      }
+      return false;
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    void chrome.runtime
+      .sendMessage({ type: "PANEL_READY" })
+      .catch(() => undefined);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+  }, []);
+  useEffect(() => {
+    void chrome.runtime
+      .sendMessage({ type: "PANEL_STATE", state: panelStateRef.current })
+      .catch(() => undefined);
+  }, [
+    mode,
+    annotations,
+    selectedId,
+    recordings,
+    selectedRecordingId,
+    recording,
+    recordingSeconds,
+    recordingLimit,
+    previewEnabled,
+    notice,
+  ]);
 
   if (!active) return null;
 
@@ -834,7 +899,6 @@ export function App({
               onClick={(event) => {
                 recordingCommentBaselineRef.current = null;
                 selectionLockRef.current = true;
-                setEditorOrigin({ x: event.clientX, y: event.clientY });
                 setSelectedRecordingId(null);
                 setSelectedId(annotation.id);
               }}
@@ -920,831 +984,6 @@ export function App({
       {recording && activeRecordingScope === "window" && (
         <div className="ui-recording-tag ui-recording-window-tag">
           REC · Window
-        </div>
-      )}
-      <Toolbar
-        mode={mode}
-        setMode={setMode}
-        count={annotations.filter((item) => item.saved).length}
-        recordingCount={recordings.length}
-        recording={recording}
-        recordingSeconds={recordingSeconds}
-        recordingLimit={recordingLimit}
-        previewEnabled={previewEnabled}
-        portalContainer={portalContainer}
-        onTogglePreview={togglePreview}
-        onStartWindow={() => startRecording()}
-        onStartArea={() => {
-          setMode("record-area");
-          setNotice("Drag a rectangle around the area to record");
-        }}
-        onStopRecording={stopRecording}
-        onExport={exportForAi}
-        recordBarOpen={recordBarOpen}
-        onToggleRecordBar={() => setRecordBarOpen((open) => !open)}
-      />
-
-      {recordBarOpen && !recording && (
-        <div
-          ref={recordBarPanel.panelRef}
-          className="ui-record-bar"
-          style={recordBarPanel.style}
-        >
-          <button
-            className="ui-panel-drag-handle"
-            title="Move recording options"
-            aria-label="Move recording options"
-            {...recordBarPanel.dragHandleProps}
-          >
-            <GripVertical size={15} />
-          </button>
-          <button
-            className="ui-record-bar-close"
-            title="Close recording options"
-            onClick={() => setRecordBarOpen(false)}
-          >
-            <X size={14} />
-          </button>
-          <span className="ui-record-bar-divider" />
-          <button
-            className="ui-record-bar-option"
-            onClick={() => {
-              setRecordBarOpen(false);
-              startRecording();
-            }}
-          >
-            <AppWindow size={18} />
-            Window
-          </button>
-          <button
-            className="ui-record-bar-option"
-            onClick={() => {
-              setRecordBarOpen(false);
-              setMode("record-area");
-              setNotice("Drag a rectangle around the area to record");
-            }}
-          >
-            <Scan size={18} />
-            Area
-          </button>
-          <label className="ui-record-bar-duration">
-            <Timer size={18} />
-            <span className="ui-record-bar-value">
-              <input
-                className="ui-record-bar-input"
-                type="text"
-                inputMode="numeric"
-                maxLength={2}
-                value={recordingLimitInput}
-                aria-label="Recording limit seconds"
-                onChange={(event) => {
-                  const raw = event.target.value.replace(/\D/g, "").slice(0, 2);
-                  setRecordingLimitInput(raw);
-                  recordingLimitInputRef.current = raw;
-                  if (!raw) return;
-                  const next = Math.min(
-                    60,
-                    Math.max(1, Number.parseInt(raw, 10) || 1),
-                  );
-                  setRecordingLimit(next);
-                  recordingLimitRef.current = next;
-                }}
-                onBlur={() => {
-                  const raw = recordingLimitInputRef.current;
-                  const next = Math.min(
-                    60,
-                    Math.max(1, Number.parseInt(raw, 10) || 1),
-                  );
-                  setRecordingLimit(next);
-                  setRecordingLimitInput(String(next));
-                  recordingLimitRef.current = next;
-                  recordingLimitInputRef.current = String(next);
-                }}
-              />
-              <span className="ui-record-bar-unit">s</span>
-            </span>
-          </label>
-        </div>
-      )}
-
-      {!recording && selectedRecording && (
-        <RecordingEditor
-          key={selectedRecording.id}
-          recording={selectedRecording}
-          initialPosition={editorOrigin}
-          index={
-            recordings.findIndex((item) => item.id === selectedRecording.id) + 1
-          }
-          onComment={(comment) =>
-            updateRecordingComment(selectedRecording.id, comment)
-          }
-          onCancel={cancelRecordingEditor}
-          onSave={saveRecordingComment}
-        />
-      )}
-
-      {selected && !selectedRecording && (
-        <Editor
-          key={selected.id}
-          annotation={selected}
-          initialPosition={editorOrigin}
-          portalContainer={portalContainer}
-          onComment={(comment) => updateAnnotation(selected.id, { comment })}
-          onStyle={(property, value) => updateStyle(selected, property, value)}
-          onText={(value) => updateText(selected, value)}
-          onCancel={cancelEditor}
-          onDelete={() => deleteAnnotation(selected)}
-          onSave={() => saveAnnotation(selected)}
-        />
-      )}
-
-      {notice && (
-        <button className="ui-notice" onClick={() => setNotice("")}>
-          {notice}
-          <X size={14} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function useMovablePanel(initialPosition?: Point) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<Point | null>(
-    initialPosition ?? null,
-  );
-  const dragRef = useRef<{
-    pointerId: number;
-    offsetX: number;
-    offsetY: number;
-  } | null>(null);
-
-  useLayoutEffect(() => {
-    if (!initialPosition || !panelRef.current) return;
-    setPosition(clampPanelPosition(initialPosition, panelRef.current));
-  }, [initialPosition?.x, initialPosition?.y]);
-
-  useEffect(() => {
-    const keepInViewport = () => {
-      setPosition((current) =>
-        current && panelRef.current
-          ? clampPanelPosition(current, panelRef.current)
-          : current,
-      );
-    };
-    window.addEventListener("resize", keepInViewport);
-    return () => window.removeEventListener("resize", keepInViewport);
-  }, []);
-
-  const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
-    if (event.button !== 0 || !panelRef.current) return;
-    const rect = panelRef.current.getBoundingClientRect();
-    dragRef.current = {
-      pointerId: event.pointerId,
-      offsetX: event.clientX - rect.left,
-      offsetY: event.clientY - rect.top,
-    };
-    setPosition({ x: rect.left, y: rect.top });
-    event.currentTarget.setPointerCapture(event.pointerId);
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
-  const onPointerMove = (event: React.PointerEvent<HTMLElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    if (!panelRef.current) return;
-    setPosition(
-      clampPanelPosition(
-        {
-          x: event.clientX - drag.offsetX,
-          y: event.clientY - drag.offsetY,
-        },
-        panelRef.current,
-      ),
-    );
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
-  const endDrag = (event: React.PointerEvent<HTMLElement>) => {
-    if (dragRef.current?.pointerId !== event.pointerId) return;
-    dragRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId))
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
-  return {
-    panelRef,
-    style: position
-      ? ({
-          left: position.x,
-          top: position.y,
-          right: "auto",
-          bottom: "auto",
-          transform: "none",
-        } satisfies React.CSSProperties)
-      : undefined,
-    dragHandleProps: {
-      onPointerDown,
-      onPointerMove,
-      onPointerUp: endDrag,
-      onPointerCancel: endDrag,
-    },
-  };
-}
-
-function clampPanelPosition(point: Point, panel: HTMLElement): Point {
-  const rect = panel.getBoundingClientRect();
-  return {
-    x: Math.min(
-      Math.max(0, point.x),
-      Math.max(0, window.innerWidth - rect.width),
-    ),
-    y: Math.min(
-      Math.max(0, point.y),
-      Math.max(0, window.innerHeight - rect.height),
-    ),
-  };
-}
-
-function Toolbar(props: {
-  mode: Mode;
-  setMode: (mode: Mode) => void;
-  count: number;
-  recordingCount: number;
-  recording: boolean;
-  recordingSeconds: number;
-  recordingLimit: number;
-  previewEnabled: boolean;
-  portalContainer: HTMLElement;
-  onTogglePreview: () => void;
-  onStartWindow: () => void;
-  onStartArea: () => void;
-  onStopRecording: () => void;
-  onExport: () => void;
-  recordBarOpen: boolean;
-  onToggleRecordBar: () => void;
-}) {
-  const panel = useMovablePanel();
-
-  return (
-    <div ref={panel.panelRef} className="ui-toolbar" style={panel.style}>
-      <button
-        className="ui-panel-drag-handle ui-toolbar-drag-handle"
-        title="Move toolbar"
-        aria-label="Move toolbar"
-        {...panel.dragHandleProps}
-      >
-        <GripVertical size={15} />
-      </button>
-      <Button
-        title="Inspect elements"
-        size="icon"
-        variant={props.mode === "inspect" ? "default" : "ghost"}
-        onClick={() =>
-          props.setMode(props.mode === "inspect" ? "idle" : "inspect")
-        }
-      >
-        <MousePointer2 size={17} />
-      </Button>
-      <Button
-        title="Annotate a region"
-        size="icon"
-        variant={props.mode === "region" ? "default" : "ghost"}
-        onClick={() =>
-          props.setMode(props.mode === "region" ? "idle" : "region")
-        }
-      >
-        <SquareDashedMousePointer size={17} />
-      </Button>
-      <span className="ui-divider" />
-      <Button
-        title={
-          props.previewEnabled
-            ? "Hide style-change preview"
-            : "Show style-change preview"
-        }
-        size="icon"
-        variant="ghost"
-        onClick={props.onTogglePreview}
-      >
-        {props.previewEnabled ? <Eye size={17} /> : <EyeOff size={17} />}
-      </Button>
-      {props.recording ? (
-        <Button
-          title="Stop GIF recording"
-          size="icon"
-          variant="destructive"
-          onClick={props.onStopRecording}
-        >
-          <StopCircle size={17} />
-        </Button>
-      ) : (
-        <>
-          <Button
-            title="Record a GIF"
-            size="icon"
-            variant={
-              props.recordBarOpen || props.mode === "record-area"
-                ? "default"
-                : "ghost"
-            }
-            onClick={props.onToggleRecordBar}
-          >
-            <Video size={17} />
-          </Button>
-        </>
-      )}
-      {props.recording && (
-        <span className="ui-timer">
-          <i /> {Math.max(0, props.recordingLimit - props.recordingSeconds)}s
-        </span>
-      )}
-      <span className="ui-count">
-        {props.count} notes · {props.recordingCount} GIF
-      </span>
-      <Button disabled={props.recording} onClick={props.onExport}>
-        <Copy size={16} /> Copy for AI
-      </Button>
-    </div>
-  );
-}
-
-function RecordingEditor(props: {
-  recording: RecordingAsset;
-  initialPosition: Point;
-  index: number;
-  onComment: (value: string) => void;
-  onCancel: () => void;
-  onSave: () => void;
-}) {
-  const panel = useMovablePanel(props.initialPosition);
-
-  return (
-    <div
-      ref={panel.panelRef}
-      className="ui-editor ui-recording-editor"
-      style={panel.style}
-    >
-      <div className="ui-editor-prompt ui-recording-editor-prompt">
-        <button
-          className="ui-editor-prompt-drag-handle"
-          title="Move panel"
-          aria-label="Move panel"
-          {...panel.dragHandleProps}
-        >
-          <Video size={18} />
-        </button>
-        <Textarea
-          autoFocus
-          value={props.recording.comment}
-          onChange={(event) => props.onComment(event.target.value)}
-          placeholder="Describe what happens in this recording…"
-          rows={4}
-        />
-      </div>
-      <div
-        className="ui-editor-title ui-panel-drag-surface"
-        {...panel.dragHandleProps}
-      >
-        <span className="ui-editor-tag">
-          GIF {props.index} ·{" "}
-          {props.recording.scope === "window" ? "Window" : "Area"}
-        </span>
-        <span className="ui-recording-meta">
-          {props.recording.width}×{props.recording.height} ·{" "}
-          {props.recording.frames} frames
-        </span>
-        <GripVertical size={16} className="ui-drag-dots" />
-      </div>
-      <div className="ui-recording-path" title={props.recording.relativePath}>
-        @{props.recording.relativePath}
-      </div>
-      <div className="ui-editor-actions">
-        <span className="ui-action-spacer" />
-        <Button variant="secondary" onClick={props.onCancel}>
-          Cancel
-        </Button>
-        <Button
-          size="icon"
-          title="Save recording annotation"
-          onClick={props.onSave}
-        >
-          <Check size={18} />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function Editor(props: {
-  annotation: LocalAnnotation;
-  initialPosition: Point;
-  portalContainer: HTMLElement;
-  onComment: (value: string) => void;
-  onStyle: (property: StyleProperty, value: string) => void;
-  onText: (value: string) => void;
-  onCancel: () => void;
-  onDelete: () => void;
-  onSave: () => void;
-}) {
-  const { annotation } = props;
-  const panel = useMovablePanel(props.initialPosition);
-  const [expandedPadding, setExpandedPadding] = useState(false);
-  const [expandedMargin, setExpandedMargin] = useState(false);
-  const [dimensionsLinked, setDimensionsLinked] = useState(false);
-
-  return (
-    <div ref={panel.panelRef} className="ui-editor" style={panel.style}>
-      <div className="ui-editor-prompt">
-        <button
-          className="ui-editor-prompt-drag-handle"
-          title="Move panel"
-          aria-label="Move panel"
-          {...panel.dragHandleProps}
-        >
-          <GripVertical size={18} />
-        </button>
-        <Textarea
-          value={annotation.comment}
-          onChange={(event) => props.onComment(event.target.value)}
-          placeholder="Describe these changes…"
-          rows={1}
-        />
-      </div>
-      <div
-        className="ui-editor-title ui-panel-drag-surface"
-        {...panel.dragHandleProps}
-      >
-        <span className="ui-editor-tag">
-          {annotation.kind === "element"
-            ? annotation.target?.tagName
-            : "Region annotation"}
-        </span>
-      </div>
-      {annotation.kind === "element" && (
-        <ScrollArea className="ui-editor-scroll">
-          <div className="ui-fields">
-            {annotation.element && isTextEditable(annotation.element) && (
-              <Field label="Text">
-                <Input
-                  value={annotation.text ?? ""}
-                  onChange={(event) => props.onText(event.target.value)}
-                />
-              </Field>
-            )}
-            <ColorField
-              label="Text color"
-              value={valueOf(annotation, "color")}
-              property="color"
-              onChange={props.onStyle}
-              portal={props.portalContainer}
-            />
-            <ColorField
-              label="Background"
-              value={valueOf(annotation, "background-color")}
-              property="background-color"
-              onChange={props.onStyle}
-              portal={props.portalContainer}
-            />
-            <NumberField
-              label="Opacity"
-              value={valueOf(annotation, "opacity")}
-              property="opacity"
-              onChange={props.onStyle}
-              step="0.05"
-            />
-            <div className="ui-section-label">Typography</div>
-            <Field label="Font">
-              <Select
-                value={valueOf(annotation, "font-family")}
-                onValueChange={(value) => props.onStyle("font-family", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent portalContainer={props.portalContainer}>
-                  {[
-                    valueOf(annotation, "font-family"),
-                    "Inter, sans-serif",
-                    "system-ui, sans-serif",
-                    "Arial, sans-serif",
-                    "Georgia, serif",
-                    "monospace",
-                  ]
-                    .filter((value, index, all) => all.indexOf(value) === index)
-                    .map((font) => (
-                      <SelectItem key={font} value={font}>
-                        {font}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <PixelField
-              label="Font size"
-              value={valueOf(annotation, "font-size")}
-              property="font-size"
-              onChange={props.onStyle}
-            />
-            <Field label="Font weight">
-              <Select
-                value={valueOf(annotation, "font-weight")}
-                onValueChange={(value) => props.onStyle("font-weight", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent portalContainer={props.portalContainer}>
-                  {[
-                    "100",
-                    "200",
-                    "300",
-                    "400",
-                    "500",
-                    "600",
-                    "700",
-                    "800",
-                    "900",
-                  ].map((weight) => (
-                    <SelectItem key={weight} value={weight}>
-                      {weight}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <div className="ui-section-label">Border</div>
-            <PixelField
-              label="Border radius"
-              value={valueOf(annotation, "border-radius")}
-              property="border-radius"
-              onChange={props.onStyle}
-            />
-            <ColorField
-              label="Border color"
-              value={valueOf(annotation, "border-color")}
-              property="border-color"
-              onChange={props.onStyle}
-              portal={props.portalContainer}
-            />
-            <PixelField
-              label="Border width"
-              value={valueOf(annotation, "border-width")}
-              property="border-width"
-              onChange={props.onStyle}
-            />
-            <div className="ui-section-label">Layout</div>
-            <div className="ui-dimensions">
-              <button
-                className={dimensionsLinked ? "ui-link active" : "ui-link"}
-                title="Lock aspect ratio"
-                onClick={() => setDimensionsLinked(!dimensionsLinked)}
-              >
-                <Link2 size={14} />
-              </button>
-              <PixelField
-                label="Width"
-                value={valueOf(annotation, "width")}
-                property="width"
-                onChange={(property, value) => {
-                  props.onStyle(property, value);
-                  if (dimensionsLinked && annotation.target?.rect.width) {
-                    props.onStyle(
-                      "height",
-                      `${(Number.parseFloat(value) * annotation.target.rect.height) / annotation.target.rect.width}px`,
-                    );
-                  }
-                }}
-              />
-              <PixelField
-                label="Height"
-                value={valueOf(annotation, "height")}
-                property="height"
-                onChange={(property, value) => {
-                  props.onStyle(property, value);
-                  if (dimensionsLinked && annotation.target?.rect.height) {
-                    props.onStyle(
-                      "width",
-                      `${(Number.parseFloat(value) * annotation.target.rect.width) / annotation.target.rect.height}px`,
-                    );
-                  }
-                }}
-              />
-            </div>
-            <SpacingFields
-              kind="padding"
-              expanded={expandedPadding}
-              setExpanded={setExpandedPadding}
-              annotation={annotation}
-              onChange={props.onStyle}
-            />
-            <SpacingFields
-              kind="margin"
-              expanded={expandedMargin}
-              setExpanded={setExpandedMargin}
-              annotation={annotation}
-              onChange={props.onStyle}
-            />
-          </div>
-        </ScrollArea>
-      )}
-      <div className="ui-editor-actions">
-        <Button
-          title="Delete annotation"
-          size="icon"
-          variant="ghost"
-          className="ui-danger-ghost"
-          onClick={props.onDelete}
-        >
-          <Trash2 size={17} />
-        </Button>
-        <span className="ui-action-spacer" />
-        <Button variant="secondary" onClick={props.onCancel}>
-          Cancel
-        </Button>
-        <Button
-          title="Save annotation"
-          aria-label="Save annotation"
-          size="icon"
-          onClick={props.onSave}
-        >
-          <Check size={18} />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="ui-field">
-      <span>{label}</span>
-      <div>{children}</div>
-    </label>
-  );
-}
-
-function NumberField(props: {
-  label: string;
-  value: string;
-  property: StyleProperty;
-  onChange: (property: StyleProperty, value: string) => void;
-  step?: string;
-}) {
-  return (
-    <Field label={props.label}>
-      <Input
-        type="number"
-        step={props.step}
-        value={Number.parseFloat(props.value) || 0}
-        onChange={(event) => props.onChange(props.property, event.target.value)}
-      />
-    </Field>
-  );
-}
-
-function PixelField(props: {
-  label: string;
-  value: string;
-  property: StyleProperty;
-  onChange: (property: StyleProperty, value: string) => void;
-}) {
-  return (
-    <Field label={props.label}>
-      <div className="ui-unit-input">
-        <Input
-          type="number"
-          step="0.5"
-          value={Number.parseFloat(props.value) || 0}
-          onChange={(event) =>
-            props.onChange(props.property, `${event.target.value}px`)
-          }
-        />
-        <span>px</span>
-      </div>
-    </Field>
-  );
-}
-
-function ColorField(props: {
-  label: string;
-  value: string;
-  property: StyleProperty;
-  onChange: (property: StyleProperty, value: string) => void;
-  portal: HTMLElement;
-}) {
-  return (
-    <Field label={props.label}>
-      <Popover>
-        <PopoverTrigger asChild>
-          <button className="ui-color-trigger">
-            <span style={{ background: props.value }} />
-            {props.value}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          portalContainer={props.portal}
-          align="end"
-          className="ui-color-popover"
-        >
-          <input
-            type="color"
-            value={colorToHex(props.value)}
-            onChange={(event) =>
-              props.onChange(props.property, event.target.value)
-            }
-          />
-          <Input
-            value={props.value}
-            onChange={(event) =>
-              props.onChange(props.property, event.target.value)
-            }
-          />
-        </PopoverContent>
-      </Popover>
-    </Field>
-  );
-}
-
-function SpacingFields(props: {
-  kind: "padding" | "margin";
-  expanded: boolean;
-  setExpanded: (value: boolean) => void;
-  annotation: LocalAnnotation;
-  onChange: (property: StyleProperty, value: string) => void;
-}) {
-  const sides = ["top", "right", "bottom", "left"] as const;
-  const [linked, setLinked] = useState(false);
-  const changeSide = (side: (typeof sides)[number], value: string) => {
-    if (linked) {
-      sides.forEach((linkedSide) =>
-        props.onChange(`${props.kind}-${linkedSide}` as StyleProperty, value),
-      );
-    } else {
-      props.onChange(`${props.kind}-${side}` as StyleProperty, value);
-    }
-  };
-  return (
-    <div className="ui-spacing">
-      <div className="ui-spacing-heading">
-        <button
-          className="ui-spacing-toggle"
-          onClick={() => props.setExpanded(!props.expanded)}
-        >
-          <span>{props.kind === "padding" ? "Padding" : "Margin"}</span>
-          <span>{props.expanded ? "⌄" : "›"}</span>
-        </button>
-        <button
-          className={linked ? "ui-link active" : "ui-link"}
-          title={`Link ${props.kind} sides`}
-          onClick={() => setLinked(!linked)}
-        >
-          <Link2 size={14} />
-        </button>
-      </div>
-      {!props.expanded ? (
-        <div className="ui-spacing-row">
-          {sides.map((side) => {
-            const property = `${props.kind}-${side}` as StyleProperty;
-            return (
-              <Input
-                key={side}
-                aria-label={`${props.kind} ${side}`}
-                type="number"
-                value={
-                  Number.parseFloat(valueOf(props.annotation, property)) || 0
-                }
-                onChange={(event) =>
-                  changeSide(side, `${event.target.value}px`)
-                }
-              />
-            );
-          })}
-        </div>
-      ) : (
-        <div className="ui-spacing-expanded">
-          {sides.map((side) => {
-            const property = `${props.kind}-${side}` as StyleProperty;
-            return (
-              <PixelField
-                key={side}
-                label={side[0].toUpperCase() + side.slice(1)}
-                value={valueOf(props.annotation, property)}
-                property={property}
-                onChange={(_, value) => changeSide(side, value)}
-              />
-            );
-          })}
         </div>
       )}
     </div>
@@ -2063,14 +1302,6 @@ function normalizeRegion(
   };
 }
 
-function valueOf(annotation: LocalAnnotation, property: StyleProperty): string {
-  return (
-    annotation.styles[property] ??
-    annotation.target?.computedStyles[property] ??
-    ""
-  );
-}
-
 function restoreElementState(annotation: LocalAnnotation): void {
   if (!annotation.element) return;
   clearResizeSlot(annotation.element);
@@ -2208,52 +1439,4 @@ function compactHtml(html: string): string {
   const text = element.textContent?.trim().replace(/\s+/g, " ") ?? "";
   shallow.textContent = text.length > 240 ? `${text.slice(0, 237)}...` : text;
   return shallow.outerHTML;
-}
-
-async function saveGifToDirectory(
-  project: FileSystemDirectoryHandle,
-  dataUrl: string,
-  filename: string,
-): Promise<string> {
-  const helperDirectory = await project.getDirectoryHandle(".ui-helper", {
-    create: true,
-  });
-  const recordingsDirectory = await helperDirectory.getDirectoryHandle(
-    "recordings",
-    { create: true },
-  );
-  const ignoreFile = await helperDirectory.getFileHandle(".gitignore", {
-    create: true,
-  });
-  const ignoreWriter = await ignoreFile.createWritable();
-  await ignoreWriter.write("*\n!.gitignore\n");
-  await ignoreWriter.close();
-
-  const gifFile = await recordingsDirectory.getFileHandle(filename, {
-    create: true,
-  });
-  const writer = await gifFile.createWritable();
-  await writer.write(await (await fetch(dataUrl)).blob());
-  await writer.close();
-  return `.ui-helper/recordings/${filename}`;
-}
-
-async function writeClipboard(text: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return;
-    } catch {
-      // Fall back for non-secure local development origins.
-    }
-  }
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  document.documentElement.append(textarea);
-  textarea.select();
-  const copied = document.execCommand("copy");
-  textarea.remove();
-  if (!copied) throw new Error("Unable to copy feedback to the clipboard");
 }

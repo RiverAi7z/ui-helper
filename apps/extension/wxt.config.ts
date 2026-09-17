@@ -20,9 +20,11 @@ export default defineConfig({
       "tabCapture",
       "offscreen",
       "clipboardWrite",
+      "sidePanel",
     ],
+    minimum_chrome_version: "116",
     action: {
-      default_title: "Toggle UI Helper",
+      default_title: "Open UI Helper sidebar",
       default_icon: {
         16: "icons/16.png",
         32: "icons/32.png",
@@ -33,7 +35,7 @@ export default defineConfig({
     commands: {
       _execute_action: {
         suggested_key: { default: "Alt+Shift+U", mac: "Alt+Shift+U" },
-        description: "Toggle UI Helper",
+        description: "Open UI Helper sidebar",
       },
     },
   },

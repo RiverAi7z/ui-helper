@@ -27,7 +27,8 @@ Annotations are kept only in the current page session and are cleared when the u
 ## Permissions
 
 - `activeTab`: temporarily accesses the page chosen by the user.
-- `scripting`: injects the UI Helper overlay after an explicit user action.
+- `scripting`: injects selection outlines and page-editing logic after an explicit user action.
+- `sidePanel`: displays editing controls separately from the inspected page.
 - `tabCapture`: records the current tab after the user starts a recording.
 - `offscreen`: processes captured frames and encodes GIF files locally.
 - `clipboardWrite`: copies feedback when the user selects Copy for AI.

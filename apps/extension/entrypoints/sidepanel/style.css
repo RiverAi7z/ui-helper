@@ -1,0 +1,79 @@
+/* A separate extension document: page zoom, CSS and layout cannot reach here. */
+:root {
+  color-scheme: dark;
+  --ui-accent: #ffffff;
+  --ui-select: #087ff5;
+  --ui-recording-red: #ff3b30;
+  --ui-panel: #222222;
+  --ui-panel-2: #2a2a2a;
+  --ui-border: #464646;
+  --ui-muted: #a8a8a8;
+  --ui-text: #f4f4f4;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--ui-text);
+  background: #16171b;
+}
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+.ui-sidebar {
+  width: 100%;
+  border: 0;
+}
+.ui-sidebar .ui-toolbar {
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 10px 8px;
+  overflow-x: auto;
+}
+.ui-toolbar > .ui-button {
+  flex-shrink: 0;
+}
+.ui-toolbar > .ui-button:not(.ui-copy-button) {
+  width: 30px;
+  height: 32px;
+}
+.ui-copy-button {
+  margin-left: auto;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+.ui-sidebar-header {
+  gap: 8px;
+  justify-content: flex-end;
+}
+.ui-sidebar-header:empty {
+  display: none;
+}
+.ui-sidebar-header .ui-count {
+  display: inline-flex;
+  margin: 0;
+  font-size: 10px;
+  padding: 4px 6px;
+}
+.ui-sidebar-header .ui-timer {
+  margin: 0;
+  padding: 4px 6px;
+}
+.ui-sidebar .ui-editor {
+  width: 100%;
+}
+.ui-notice {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.ui-notice svg {
+  flex-shrink: 0;
+}

@@ -11,6 +11,7 @@
     "test-page": "vite test-page --host 127.0.0.1",
     "build": "npm run build -w @ui-helper/shared && npm run build -w @ui-helper/extension",
     "check": "npm run check --workspaces --if-present",
+    "test": "node --test tests/*.test.mjs",
     "format": "prettier --write ."
   },
   "devDependencies": {

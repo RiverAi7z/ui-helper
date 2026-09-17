@@ -6,11 +6,18 @@ import styles from "./style.css?inline";
 export default defineContentScript({
   registration: "runtime",
   runAt: "document_idle",
-  main() {
-    if (document.querySelector("ui-helper-root")) return;
+  main(ctx) {
+    // Page DOM is not proof that OUR isolated-world listener is installed.
+    // A stale extension or a page/test script can own the same custom element.
+    const scope = globalThis as typeof globalThis & {
+      __uiHelperMount?: { host: HTMLElement; dispose: () => void };
+    };
+    if (scope.__uiHelperMount?.host.isConnected) return;
+    scope.__uiHelperMount?.dispose();
 
     const host = document.createElement("ui-helper-root");
     host.setAttribute("data-ui-helper-root", "");
+    host.setAttribute("data-ui-helper-owner", chrome.runtime.id ?? "test");
     Object.assign(host.style, {
       position: "fixed",
       inset: "0",
@@ -24,12 +31,21 @@ export default defineContentScript({
     style.textContent = styles;
     const mount = document.createElement("div");
     mount.id = "ui-helper-app";
-    const portals = document.createElement("div");
-    portals.id = "ui-helper-portals";
-    shadow.append(style, mount, portals);
-    (document.body ?? document.documentElement).append(host);
+    shadow.append(style, mount);
+    // Keep extension UI outside the page body's layout/containing block.
+    document.documentElement.append(host);
 
     const root = createRoot(mount);
-    root.render(<App host={host} portalContainer={portals} />);
+    const instance = {
+      host,
+      dispose: () => {
+        root.unmount();
+        host.remove();
+        if (scope.__uiHelperMount === instance) delete scope.__uiHelperMount;
+      },
+    };
+    scope.__uiHelperMount = instance;
+    ctx.onInvalidated(instance.dispose);
+    root.render(<App host={host} />);
   },
 });
