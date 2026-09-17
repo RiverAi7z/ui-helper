@@ -137,9 +137,6 @@ export function App({
   const recordingRegionRef = useRef<RectSnapshot | undefined>(undefined);
   const recordingLimitRef = useRef(20);
   const recordingLimitInputRef = useRef("20");
-  const lastSelectionRef = useRef<{ element: HTMLElement; at: number } | null>(
-    null,
-  );
   const editBaselineRef = useRef<{
     id: string;
     styles: LocalAnnotation["styles"];
@@ -225,20 +222,41 @@ export function App({
         return;
       const target = document.elementFromPoint(event.clientX, event.clientY);
       if (!(target instanceof HTMLElement)) return;
-      const lastSelection = lastSelectionRef.current;
-      const now = performance.now();
-      if (lastSelection?.element === target && now - lastSelection.at < 350)
-        return;
-      lastSelectionRef.current = { element: target, at: now };
       selectionLockRef.current = true;
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      const annotation = createElementAnnotation(
-        target,
-        annotationsRef.current.length + 1,
-      );
-      setAnnotations((items) => [...items, annotation]);
+      // DOM identity is authoritative: identical-looking siblings are separate
+      // targets. Only resolve the stored selector when a framework replaced the
+      // old node (including when style preview, and its observer, is disabled).
+      const existing = annotationsRef.current.find((item) => {
+        if (item.element === target) return true;
+        if (!item.target || item.element?.isConnected) return false;
+        try {
+          return document.querySelector(item.target.selector) === target;
+        } catch {
+          return false;
+        }
+      });
+      const annotation =
+        existing ??
+        createElementAnnotation(target, annotationsRef.current.length + 1);
+      if (!existing) {
+        setAnnotations((items) => [...items, annotation]);
+      } else if (existing.element !== target) {
+        if (previewEnabled) {
+          applyStyles(target, existing.styles);
+          if (existing.text !== undefined && isTextEditable(target))
+            target.textContent = existing.text;
+        }
+        setAnnotations((items) =>
+          items.map((item) =>
+            item.id === existing.id ? { ...item, element: target } : item,
+          ),
+        );
+      }
+      recordingCommentBaselineRef.current = null;
+      setSelectedRecordingId(null);
       setEditorOrigin({ x: event.clientX, y: event.clientY });
       setSelectedId(annotation.id);
       setHovered(null);
@@ -331,7 +349,7 @@ export function App({
       document.removeEventListener("pointerup", onPointerUp, true);
       document.removeEventListener("keydown", onKey, true);
     };
-  }, [active, host, mode, recording, regionStart]);
+  }, [active, host, mode, recording, regionStart, previewEnabled]);
 
   useEffect(() => {
     if (!previewEnabled) return;
@@ -766,9 +784,30 @@ export function App({
                     : "ui-selected-box"
                 }
               />
+              {annotation.id === selectedId &&
+                annotation.element?.isConnected &&
+                previewEnabled && (
+                  <ElementTransform
+                    rect={rect}
+                    element={annotation.element}
+                    onChange={(styles) => {
+                      applyStyles(annotation.element!, styles);
+                      updateAnnotation(annotation.id, {
+                        styles: { ...annotation.styles, ...styles },
+                      });
+                    }}
+                  />
+                )}
               <button
                 className="ui-marker"
-                style={{ left: rect.x + rect.width - 12, top: rect.y - 12 }}
+                style={{
+                  left: rect.x + rect.width - 12,
+                  top:
+                    rect.y -
+                    (annotation.id === selectedId && annotation.element
+                      ? 32
+                      : 12),
+                }}
                 onClick={(event) => {
                   recordingCommentBaselineRef.current = null;
                   selectionLockRef.current = true;
@@ -1507,7 +1546,12 @@ function Editor(props: {
         <Button variant="secondary" onClick={props.onCancel}>
           Cancel
         </Button>
-        <Button size="icon" onClick={props.onSave}>
+        <Button
+          title="Save annotation"
+          aria-label="Save annotation"
+          size="icon"
+          onClick={props.onSave}
+        >
           <Check size={18} />
         </Button>
       </div>
@@ -1698,6 +1742,254 @@ function Box({ rect, className }: { rect: RectSnapshot; className: string }) {
         height: rect.height,
       }}
     />
+  );
+}
+
+type TransformHandle =
+  "move" | "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+
+function ElementTransform({
+  rect,
+  element,
+  onChange,
+}: {
+  rect: RectSnapshot;
+  element: HTMLElement;
+  onChange: (styles: LocalAnnotation["styles"]) => void;
+}) {
+  const gesture = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    handle: TransformHandle;
+    width: number;
+    height: number;
+    left: number;
+    top: number;
+    scaleX: number;
+    scaleY: number;
+    position: string;
+    display: string;
+    preserveFlexSpace: boolean;
+    marginX: "margin-left" | "margin-right";
+    marginY: "margin-top" | "margin-bottom";
+    marginXValue: number;
+    marginYValue: number;
+    minWidth: number;
+    minHeight: number;
+    maxWidth: number;
+    maxHeight: number;
+    original: LocalAnnotation["styles"];
+  } | null>(null);
+
+  const start = (
+    event: React.PointerEvent<HTMLDivElement>,
+    handle: TransformHandle,
+  ) => {
+    if (event.button !== 0 || gesture.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const computed = getComputedStyle(element);
+    const bounds = element.getBoundingClientRect();
+    const number = (property: string) =>
+      parseFloat(computed.getPropertyValue(property)) || 0;
+    const borderBox = computed.boxSizing === "border-box";
+    const width = parseFloat(computed.width);
+    const height = parseFloat(computed.height);
+    const parent =
+      element.parentElement && getComputedStyle(element.parentElement);
+    const preserveFlexSpace =
+      !!parent &&
+      /^(inline-)?flex$/.test(parent.display) &&
+      computed.position !== "absolute" &&
+      computed.position !== "fixed";
+    // Compensate on the trailing sides so the flex item's outer footprint stays
+    // unchanged. This avoids stretching siblings, redistribution and wrapping.
+    const reverseX =
+      (parent?.direction === "rtl") !==
+      (parent?.flexDirection === "row-reverse");
+    const marginX = reverseX ? "margin-left" : "margin-right";
+    const marginY =
+      parent?.flexDirection === "column-reverse"
+        ? "margin-top"
+        : "margin-bottom";
+    const limit = (value: string, fallback: number) =>
+      value.endsWith("px") ? parseFloat(value) : fallback;
+    gesture.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      handle,
+      width: Number.isFinite(width)
+        ? width
+        : element.offsetWidth -
+          (borderBox
+            ? 0
+            : number("padding-left") +
+              number("padding-right") +
+              number("border-left-width") +
+              number("border-right-width")),
+      height: Number.isFinite(height)
+        ? height
+        : element.offsetHeight -
+          (borderBox
+            ? 0
+            : number("padding-top") +
+              number("padding-bottom") +
+              number("border-top-width") +
+              number("border-bottom-width")),
+      left: computed.position === "static" ? 0 : number("left"),
+      top: computed.position === "static" ? 0 : number("top"),
+      scaleX: bounds.width / element.offsetWidth || 1,
+      scaleY: bounds.height / element.offsetHeight || 1,
+      position: computed.position === "static" ? "relative" : computed.position,
+      display:
+        computed.display === "inline" ? "inline-block" : computed.display,
+      preserveFlexSpace,
+      marginX,
+      marginY,
+      marginXValue: number(marginX),
+      marginYValue: number(marginY),
+      minWidth: limit(computed.minWidth, 1),
+      minHeight: limit(computed.minHeight, 1),
+      maxWidth: limit(computed.maxWidth, Infinity),
+      maxHeight: limit(computed.maxHeight, Infinity),
+      original: Object.fromEntries(
+        [
+          "position",
+          "left",
+          "top",
+          "width",
+          "height",
+          "display",
+          marginX,
+          marginY,
+          "flex-grow",
+          "flex-shrink",
+          "flex-basis",
+        ].map((key) => [key, computed.getPropertyValue(key)]),
+      ),
+    };
+    event.currentTarget
+      .closest<HTMLElement>(".ui-element-transform")!
+      .setPointerCapture(event.pointerId);
+  };
+  const move = (event: React.PointerEvent<HTMLDivElement>) => {
+    const current = gesture.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const dx = (event.clientX - current.x) / current.scaleX;
+    const dy = (event.clientY - current.y) / current.scaleY;
+    const { handle } = current;
+    const styles: LocalAnnotation["styles"] = { position: current.position };
+    const px = (value: number) => `${Math.round(value * 100) / 100}px`;
+    if (handle === "move") {
+      styles.left = px(current.left + dx);
+      styles.top = px(current.top + dy);
+    } else {
+      styles.display = current.display;
+      if (current.preserveFlexSpace) {
+        styles.width = px(current.width);
+        styles.height = px(current.height);
+        styles["flex-grow"] = "0";
+        styles["flex-shrink"] = "0";
+        styles["flex-basis"] = "auto";
+      }
+      if (handle.includes("e") || handle.includes("w")) {
+        const width = Math.max(
+          1,
+          current.minWidth,
+          Math.min(
+            current.maxWidth,
+            current.width + (handle.includes("w") ? -dx : dx),
+          ),
+        );
+        styles.width = px(width);
+        if (current.preserveFlexSpace)
+          styles[current.marginX] = px(
+            current.marginXValue + current.width - width,
+          );
+        if (
+          handle.includes("w") ||
+          (current.preserveFlexSpace && current.marginX === "margin-left")
+        )
+          styles.left = px(
+            current.left +
+              (current.preserveFlexSpace && current.marginX === "margin-left"
+                ? width - current.width
+                : 0) +
+              (handle.includes("w") ? current.width - width : 0),
+          );
+      }
+      if (handle.includes("n") || handle.includes("s")) {
+        const height = Math.max(
+          1,
+          current.minHeight,
+          Math.min(
+            current.maxHeight,
+            current.height + (handle.includes("n") ? -dy : dy),
+          ),
+        );
+        styles.height = px(height);
+        if (current.preserveFlexSpace)
+          styles[current.marginY] = px(
+            current.marginYValue + current.height - height,
+          );
+        if (
+          handle.includes("n") ||
+          (current.preserveFlexSpace && current.marginY === "margin-top")
+        )
+          styles.top = px(
+            current.top +
+              (current.preserveFlexSpace && current.marginY === "margin-top"
+                ? height - current.height
+                : 0) +
+              (handle.includes("n") ? current.height - height : 0),
+          );
+      }
+    }
+    onChange(styles);
+  };
+  return (
+    <div
+      className="ui-element-transform"
+      title="Drag to move; drag handles to resize"
+      style={{
+        left: rect.x,
+        top: rect.y,
+        width: rect.width,
+        height: rect.height,
+      }}
+      onPointerDown={(event) => start(event, "move")}
+      onPointerMove={move}
+      onPointerUp={(event) => {
+        if (gesture.current?.pointerId !== event.pointerId) return;
+        move(event);
+        gesture.current = null;
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }}
+      onPointerCancel={() => {
+        if (gesture.current) onChange(gesture.current.original);
+        gesture.current = null;
+      }}
+      onLostPointerCapture={() => {
+        gesture.current = null;
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+    >
+      {(["n", "s", "e", "w", "ne", "nw", "se", "sw"] as const).map((handle) => (
+        <div
+          key={handle}
+          className={`ui-transform-handle ui-transform-${handle}`}
+          title={`Resize ${handle}`}
+          onPointerDown={(event) => start(event, handle)}
+        />
+      ))}
+    </div>
   );
 }
 

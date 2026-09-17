@@ -27,7 +27,7 @@ Load `apps/extension/.output/chrome-mv3` from `chrome://extensions` with **Devel
 ## Usage
 
 1. Open the local page you want to review and click the UI Helper extension icon.
-2. Hover and select an element, adjust its values in the editor, then save the annotation.
+2. Hover and select an element. Drag the selected area to move it, or drag its eight edge/corner handles to resize it. You can also adjust values in the editor, then save the annotation. Selecting the same element again reopens its existing annotation instead of creating a duplicate. Mouse changes are included in **Copy for AI**; Cancel restores the previous styles. Enable style-change preview to use the drag handles.
 3. Use the region tool for layout areas or canvas content.
 4. Click Record when a problem involves motion, then choose **Window** for the visible web page or **Area** to drag a recording rectangle. The first recording opens Chromium's project-folder permission dialog directly over the current page. GIFs are written to `.ui-helper/recordings/`.
 5. After the GIF is saved, describe the issue in the recording annotation editor. Click a red GIF label later to edit its annotation.

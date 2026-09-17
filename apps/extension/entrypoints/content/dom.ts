@@ -6,6 +6,9 @@ import type {
 
 export const STYLE_PROPERTIES = [
   "display",
+  "position",
+  "left",
+  "top",
   "color",
   "background-color",
   "opacity",
@@ -17,6 +20,9 @@ export const STYLE_PROPERTIES = [
   "border-width",
   "width",
   "height",
+  "flex-grow",
+  "flex-shrink",
+  "flex-basis",
   "padding-top",
   "padding-right",
   "padding-bottom",

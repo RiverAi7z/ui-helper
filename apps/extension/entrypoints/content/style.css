@@ -67,6 +67,64 @@ button {
   background: rgb(8 127 245 / 8%);
   box-shadow: 0 0 0 1px rgb(0 0 0 / 25%);
 }
+.ui-element-transform {
+  position: fixed;
+  z-index: 11;
+  pointer-events: auto;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+.ui-transform-handle {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  background: white;
+  border: 1px solid var(--ui-select);
+  pointer-events: auto;
+  touch-action: none;
+  transform: translate(-50%, -50%);
+}
+.ui-transform-n {
+  left: 50%;
+  top: 0;
+  cursor: ns-resize;
+}
+.ui-transform-s {
+  left: 50%;
+  top: 100%;
+  cursor: ns-resize;
+}
+.ui-transform-e {
+  left: 100%;
+  top: 50%;
+  cursor: ew-resize;
+}
+.ui-transform-w {
+  left: 0;
+  top: 50%;
+  cursor: ew-resize;
+}
+.ui-transform-ne {
+  left: 100%;
+  top: 0;
+  cursor: nesw-resize;
+}
+.ui-transform-nw {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
+}
+.ui-transform-se {
+  left: 100%;
+  top: 100%;
+  cursor: nwse-resize;
+}
+.ui-transform-sw {
+  left: 0;
+  top: 100%;
+  cursor: nesw-resize;
+}
 .ui-region-box {
   border: 0;
   box-shadow: none;
